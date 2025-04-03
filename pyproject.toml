@@ -8,7 +8,9 @@ authors = [
 readme = "README.md"
 requires-python = "^3.11"
 dependencies = [
-    "aiohttp[speedups] (>=3.11.16,<4.0.0)"
+    "aiohttp[speedups] (>=3.11.16,<4.0.0)",
+    "beautifulsoup4 (>=4.13.3,<5.0.0)",
+    "python-dotenv (>=1.1.0,<2.0.0)"
 ]
 
 

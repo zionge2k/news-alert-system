@@ -2,7 +2,7 @@ import aiohttp
 from bs4 import BeautifulSoup
 from app.crawler.base import BaseNewsCrawler, Article
 
-class MbcPoliticsCrawler(BaseNewsCrawler):
+class MbcHtmlCrawler(BaseNewsCrawler):
     """
     MBC 정치 섹션을 크롤링하는 클래스.
     """

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Protocol
+from typing import Any
 
 class Article(dict):
     """단순한 딕셔너리지만 명시적으로 타입 이름 부여"""
@@ -12,7 +12,7 @@ class BaseNewsCrawler(ABC):
     """
 
     @abstractmethod
-    async def fetch_articles(self, keyword: str) -> list[Article]:
+    async def fetch_articles(self) -> list[Article]:
         """
         주어진 키워드로 기사 목록을 수집
         """

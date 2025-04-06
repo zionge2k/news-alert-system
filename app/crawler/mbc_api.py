@@ -3,6 +3,7 @@ import aiohttp
 import json
 from datetime import date
 from app.crawler.base import BaseNewsCrawler, Article
+from app.crawler.utils.json_cleaner import sanitize_js_style_json
 
 
 class MbcNewsApiCrawler(BaseNewsCrawler):
@@ -21,8 +22,8 @@ class MbcNewsApiCrawler(BaseNewsCrawler):
                 raw = await response.text()
 
         try:
-            # BOM(Byte Order Mark, '\ufeff') 제거 후 양쪽 공백 제거
-            cleaned = raw.lstrip('\ufeff').strip()
+            # BOM 제거 + 앞뒤 공백 제거 + 마지막 , 제거
+            cleaned = sanitize_js_style_json(raw)
 
             # JSON이 순수한 객체형이라면 바로 파싱 가능
             # 혹시 JS 변수 선언이 포함되었다면 정규식 추출도 고려해야 함
@@ -52,8 +53,8 @@ class MbcNewsApiCrawler(BaseNewsCrawler):
             async with session.get(url) as response:
                 raw = await response.text()
 
-        # BOM 제거 + 앞뒤 공백 제거
-        cleaned = raw.lstrip('\ufeff').strip()
+        # BOM 제거 + 앞뒤 공백 제거 + 마지막 , 제거
+        cleaned = sanitize_js_style_json(raw)
 
         try:
             # 순수 JSON 파싱

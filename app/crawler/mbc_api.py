@@ -7,9 +7,9 @@ from app.crawler.utils.json_cleaner import sanitize_js_style_json
 
 
 class MbcNewsApiCrawler(BaseNewsCrawler):
-    async def fetch_articles(self, keyword: str) -> list[Article]:
+    async def fetch_articles(self) -> list[Article]:
         current_id, data_id = await self._get_today_ids()
-        return await self._fetch_news(current_id, data_id, keyword)
+        return await self._fetch_news(current_id, data_id)
 
     async def _get_today_ids(self) -> tuple[str, str]:
         cal_url = "https://imnews.imbc.com/news/2025/politics/cal_data.js"
@@ -45,7 +45,7 @@ class MbcNewsApiCrawler(BaseNewsCrawler):
         raise ValueError(f"{today}에 해당하는 날짜 정보가 없습니다 (cal_data.js 내)")
 
 
-    async def _fetch_news(self, current_id: str, data_id: str, keyword: str) -> list[Article]:
+    async def _fetch_news(self, current_id: str, data_id: str) -> list[Article]:
         filename = f"{current_id}_{data_id}.js"
         url = f"https://imnews.imbc.com/news/2025/politics/{filename}"
         
@@ -67,9 +67,8 @@ class MbcNewsApiCrawler(BaseNewsCrawler):
             for item in group.get("List", []):
                 title = item.get("Title")
                 link = item.get("Link")
-                if title and keyword in title:
-                    articles.append({
-                        "title": title,
-                        "link": link
-                    })
+                articles.append({
+                    "title": title,
+                    "link": link
+                })
         return articles

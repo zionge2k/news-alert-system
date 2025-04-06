@@ -1,13 +1,13 @@
 import asyncio
 from app.crawler.registry import CRAWLERS
 
-async def run_all(keyword: str = "탄핵"):
-    print(f"\n['{keyword}' 키워드로 뉴스 수집 시작]\n")
+async def run_all():
+    print(f"\n[정치 섹션 뉴스 수집 시작]\n")
 
     for name, crawler in CRAWLERS.items():
         print(f"== {name.upper()} ==")
         try:
-            articles = await crawler.fetch_articles(keyword)
+            articles = await crawler.fetch_articles()
             if not articles:
                 print("관련 뉴스 없음.")
             else:

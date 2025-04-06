@@ -12,7 +12,7 @@ class BaseNewsCrawler(ABC):
     """
 
     @abstractmethod
-    async def fetch_articles(self, keyword: str) -> list[Article]:
+    async def fetch_articles(self) -> list[Article]:
         """
         주어진 키워드로 기사 목록을 수집
         """

@@ -13,13 +13,13 @@ class HybridMbcCrawler(BaseNewsCrawler):
         self.api_crawler = MbcNewsApiCrawler()
         self.html_crawler = MbcHtmlCrawler()
 
-    async def fetch_articles(self, keyword: str) -> list[Article]:
+    async def fetch_articles(self) -> list[Article]:
         try:
             print("[Hybrid] Trying API crawler...")
-            articles = await self.api_crawler.fetch_articles(keyword)
+            articles = await self.api_crawler.fetch_articles()
             if not articles:
                 raise ValueError("API 결과 없음")
             return articles
         except Exception as e:
             print(f"[Hybrid] API 실패, HTML fallback: {e}")
-            return await self.html_crawler.fetch_articles(keyword)
+            return await self.html_crawler.fetch_articles()

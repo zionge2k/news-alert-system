@@ -1,10 +1,13 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
+
 class Article(dict):
     """단순한 딕셔너리지만 명시적으로 타입 이름 부여"""
+
     title: str
     link: str
+
 
 class BaseNewsCrawler(ABC):
     """
@@ -17,4 +20,3 @@ class BaseNewsCrawler(ABC):
         주어진 키워드로 기사 목록을 수집
         """
         pass
-

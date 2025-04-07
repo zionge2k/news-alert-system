@@ -1,9 +1,10 @@
-from app.crawler.base import BaseNewsCrawler, Article
+from app.crawler.base import Article, BaseNewsCrawler
 from app.crawler.mbc_api import MbcNewsApiCrawler
 from app.crawler.mbc_html import MbcHtmlCrawler
 from common.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
 
 class HybridMbcCrawler(BaseNewsCrawler):
     """

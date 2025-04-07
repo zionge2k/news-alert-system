@@ -1,9 +1,11 @@
 import aiohttp
 from bs4 import BeautifulSoup
-from app.crawler.base import BaseNewsCrawler, Article
+
+from app.crawler.base import Article, BaseNewsCrawler
 from common.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
 
 class MbcHtmlCrawler(BaseNewsCrawler):
     """
@@ -15,7 +17,7 @@ class MbcHtmlCrawler(BaseNewsCrawler):
 
     async def fetch_articles(self) -> list[Article]:
         logger.info(f"[MBC HTML] 페이지 요청: {self.TARGET_URL}")
-        
+
         async with aiohttp.ClientSession() as session:
             async with session.get(self.TARGET_URL) as response:
                 html = await response.text()

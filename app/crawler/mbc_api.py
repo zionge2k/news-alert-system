@@ -1,8 +1,10 @@
-from typing import Any
-import aiohttp
 import json
 from datetime import date
-from app.crawler.base import BaseNewsCrawler, Article
+from typing import Any
+
+import aiohttp
+
+from app.crawler.base import Article, BaseNewsCrawler
 from app.crawler.utils.json_cleaner import sanitize_js_style_json
 from common.utils.logger import get_logger
 
@@ -38,7 +40,9 @@ class MbcNewsApiCrawler(BaseNewsCrawler):
         today = date.today().strftime("%Y%m%d")
         for item in cal_data.get("DateList", []):
             if item["Day"] == today:
-                logger.info(f"[MBC API] 오늘 날짜({today})에 해당하는 ID 찾음: {item['CurrentID']}, {cal_data['DataId']}")
+                logger.info(
+                    f"[MBC API] 오늘 날짜({today})에 해당하는 ID 찾음: {item['CurrentID']}, {cal_data['DataId']}"
+                )
                 return item["CurrentID"], cal_data["DataId"]
 
         logger.warning(f"[MBC API] 오늘 날짜({today})에 해당하는 정보 없음")

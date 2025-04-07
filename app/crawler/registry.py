@@ -1,5 +1,5 @@
 from app.crawler.base import BaseNewsCrawler
-from app.crawler.mbc_hybrid import HybridMbcCrawler
+from app.crawler.mbc.hybrid import HybridMbcCrawler
 
 CRAWLERS: dict[str, BaseNewsCrawler] = {
     "mbc": HybridMbcCrawler(),

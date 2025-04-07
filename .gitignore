@@ -6,9 +6,6 @@ __pycache__/
 # Virtual environment (if accidentally created)
 .venv/
 
-# Poetry files
-poetry.lock
-
 # Pytest / coverage
 .cache/
 .coverage

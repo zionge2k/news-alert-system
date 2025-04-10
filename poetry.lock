@@ -548,6 +548,18 @@ files = [
 ]
 
 [[package]]
+name = "fake-useragent"
+version = "2.1.0"
+description = "Up-to-date simple useragent faker with real world database"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "fake_useragent-2.1.0-py3-none-any.whl", hash = "sha256:1363d8be4934627f80a84c21cce72d33c5da650a9f1fd7398520b1edb6ecd873"},
+    {file = "fake_useragent-2.1.0.tar.gz", hash = "sha256:cbb2cde0512ecefec1e6175e59d8bcc5cd94af25161432860769a4f3767ad62c"},
+]
+
+[[package]]
 name = "filelock"
 version = "3.18.0"
 description = "A platform independent file lock."
@@ -1330,4 +1342,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "c710c51b8338586579a11d9a6e1d6c7e7e1e4e379443259a81e3c1c81ad62805"
+content-hash = "e5d4bae469b969c7fd5908c2fa5c75f2801ddd9daf658b7ec9db0ff1cbde1fbc"

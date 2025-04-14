@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import List
 
 import aiohttp
@@ -21,10 +20,6 @@ class JTBCNewsApiCrawler(BaseNewsCrawler):
 
         articles: List[Article] = []
 
-        # 오늘 날짜 가져오기
-        today = datetime.now().strftime("%Y-%m-%d")
-        logger.info(f"[JTBC] 오늘 날짜: {today}")
-
         timeout = aiohttp.ClientTimeout(total=30)
         connector = aiohttp.TCPConnector(limit=10, ssl=False)
 
@@ -39,9 +34,7 @@ class JTBCNewsApiCrawler(BaseNewsCrawler):
                         data = await response.json()
                         news_list = data["data"]["list"]
                         for item in news_list:
-                            # 오늘 날짜의 기사만 추가
-                            pub_date = item.get("publicationDate", "").split("T")[0]
-                            if pub_date == today:
+                            try:
                                 title = item.get("articleTitle")
                                 article_idx = item.get("articleIdx")
                                 if title and article_idx:
@@ -49,6 +42,11 @@ class JTBCNewsApiCrawler(BaseNewsCrawler):
                                         f"https://news.jtbc.co.kr/article/{article_idx}"
                                     )
                                     articles.append({"title": title, "link": link})
+                            except Exception as e:
+                                logger.warning(
+                                    f"[JTBC] 기사 정보 처리 중 오류: {str(e)}"
+                                )
+                                continue
                     else:
                         logger.error(f"[JTBC] 요청 실패 - 상태 코드: {response.status}")
 

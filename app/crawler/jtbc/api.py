@@ -19,7 +19,6 @@ class JTBCNewsApiCrawler(BaseNewsCrawler):
         logger.info("[JTBC] 뉴스 API 요청 시작")
 
         articles: List[Article] = []
-
         timeout = aiohttp.ClientTimeout(total=30)
         connector = aiohttp.TCPConnector(limit=10, ssl=False)
 
@@ -30,25 +29,24 @@ class JTBCNewsApiCrawler(BaseNewsCrawler):
                 params = {"pageNo": 1, "pageSize": 20, "articleListType": "ARTICLE"}
 
                 async with session.get(self.BASE_URL, params=params) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        news_list = data["data"]["list"]
-                        for item in news_list:
-                            try:
-                                title = item.get("articleTitle")
-                                article_idx = item.get("articleIdx")
-                                if title and article_idx:
-                                    link = (
-                                        f"https://news.jtbc.co.kr/article/{article_idx}"
-                                    )
-                                    articles.append({"title": title, "link": link})
-                            except Exception as e:
-                                logger.warning(
-                                    f"[JTBC] 기사 정보 처리 중 오류: {str(e)}"
-                                )
-                                continue
-                    else:
+                    if response.status != 200:
                         logger.error(f"[JTBC] 요청 실패 - 상태 코드: {response.status}")
+                        return articles
+
+                    data = await response.json()
+                    news_list = data.get("data", {}).get("list", [])
+
+                    for item in news_list:
+                        try:
+                            title = item.get("articleTitle")
+                            article_idx = item.get("articleIdx")
+                            if not title or not article_idx:
+                                continue
+
+                            link = f"https://news.jtbc.co.kr/article/{article_idx}"
+                            articles.append({"title": title, "link": link})
+                        except Exception as e:
+                            logger.warning(f"[JTBC] 기사 정보 처리 중 오류: {str(e)}")
 
         except Exception as e:
             logger.error(f"[JTBC] 뉴스 수집 중 오류 발생: {str(e)}")

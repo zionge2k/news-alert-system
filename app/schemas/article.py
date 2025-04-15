@@ -15,9 +15,9 @@ class ArticleDTO(BaseModel, Generic[T]):
     """
 
     title: str
-    link: str
+    url: str
     platform: str
-    reporter: Optional[str] = None
+    author: Optional[str] = None
     content: Optional[str] = None
     category: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
@@ -31,9 +31,9 @@ class ArticleDTO(BaseModel, Generic[T]):
         schema_extra = {
             "example": {
                 "title": "속보: 중요 뉴스입니다",
-                "link": "https://news.example.com/article/12345",
+                "url": "https://news.example.com/article/12345",
                 "platform": "JTBC",
-                "reporter": "홍길동",
+                "author": "홍길동",
                 "content": "뉴스 본문 내용...",
                 "category": "정치",
                 "tags": ["속보", "정치", "대통령"],

@@ -13,7 +13,8 @@ async def run_crawler(name, crawler):
             logger.info(f"{name}: 관련 뉴스 없음.")
         else:
             for article in articles:
-                logger.info(f"{name}: {article['title']}\n  → {article['link']}")
+                # 모든 크롤러가 ArticleDTO 형식을 반환하도록 표준화
+                logger.info(f"{name}: {article.title}\n  → {article.url}")
     except Exception as e:
         logger.error(f"{name} 크롤링 실패: {e}")
 

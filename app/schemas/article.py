@@ -15,7 +15,7 @@ class ArticleMetadata(BaseModel):
         category: 뉴스 카테고리 (예: 정치, 경제, 사회)
         tags: 기사 관련 태그 목록
         published_at: 기사가 언론사 플랫폼에 발행된 시간
-        created_at: 시스템에서 기사를 수집한 시간
+        collected_at: 시스템에서 기사를 수집한 시간
         updated_at: 기사 정보가 마지막으로 업데이트된 시간
     """
 
@@ -23,7 +23,7 @@ class ArticleMetadata(BaseModel):
     category: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
     published_at: Optional[datetime] = None
-    created_at: datetime = Field(default_factory=datetime.now)
+    collected_at: datetime = Field(default_factory=datetime.now)
     updated_at: Optional[datetime] = None
 
 
@@ -84,7 +84,7 @@ class ArticleDTO(BaseModel, Generic[T]):
                     "category": "정치",
                     "tags": ["속보", "정치", "대통령"],
                     "published_at": "2023-07-01T10:00:00",
-                    "created_at": "2023-07-01T12:30:00",
+                    "collected_at": "2023-07-01T12:30:00",
                 },
             }
         }

@@ -3,109 +3,125 @@
 import asyncio
 import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import TypedDict
 
 import aiohttp
-import fake_useragent
 
-from app.crawler.base import Article, BaseNewsCrawler
+from app.crawler.base import BaseNewsCrawler
+from app.crawler.utils.headers import create_ytn_headers
+from app.crawler.utils.json_cleaner import sanitize_js_style_json
+from app.schemas.article import ArticleDTO, ArticleMetadata
 from common.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
+class YtnNewsArticle(TypedDict):
+    """YTN 뉴스 API 응답 데이터 구조"""
+
+    title: str  # 기사 제목
+    mcd: str  # 카테고리 코드
+    join_key: str  # 기사 고유 ID
+
+
+class YtnArticleMetadata(ArticleMetadata):
+    """YTN 뉴스 메타데이터 모델"""
+
+    article_id: str  # 기사 고유 ID (join_key)
+    category_code: str  # 카테고리 코드 (mcd)
+
+
+# 카테고리 코드 매핑
+CATEGORY_MAP = {
+    "0101": "정치",
+    "0102": "경제",
+    "0103": "사회",
+    "0104": "국제",
+    "0105": "과학",
+    "0106": "문화",
+    "0107": "스포츠",
+}
+
+
 class YtnNewsApiCrawler(BaseNewsCrawler):
     """
-    YTN 정치 뉴스 크롤러
+    YTN 뉴스 API 크롤러
     """
 
-    API_URL = "https://www.ytn.co.kr/ajax/getMoreNews.php"
-    USER_AGENT = fake_useragent.UserAgent()
+    API_URL = "https://www.ytn.co.kr/ajax/getManyNews.php"
 
-    @staticmethod
-    def random_user_agent() -> str:
-        return YtnNewsApiCrawler.USER_AGENT.random
-
-    async def fetch_articles(self) -> List[Article]:
-        logger.info("[YTN] 정치 뉴스 API 요청 시작")
-
-        timeout = aiohttp.ClientTimeout(total=30)
-        connector = aiohttp.TCPConnector(limit=10, ssl=False)
-
-        articles: List[Article] = []
-
-        # 오늘 날짜 가져오기
-        today = datetime.now().strftime("%Y-%m-%d")
-        logger.info(f"[YTN] 오늘 날짜: {today}")
-
-        async with aiohttp.ClientSession(
-            connector=connector, timeout=timeout
-        ) as session:
-            tasks = []
-            for i in range(1, 4):  # 1~3 페이지 요청
-                tasks.append(self._fetch_news(session, i))
-
-            results = await asyncio.gather(*tasks)
-
-            for result in results:
-                if result and "data" in result:
-                    page_data = result["data"]
-                    for item in page_data.get("data", []):
-                        title = item.get("title")
-                        join_key = item.get("join_key")
-                        # 날짜 정보 추출 ('3' 키에 날짜가 저장되어 있음)
-                        date_str = item.get("3", "")
-
-                        # 오늘 날짜의 기사만 추가
-                        if date_str == today:
-                            if title and join_key:
-                                link = f"https://www.ytn.co.kr/_ln/0101_{join_key}"
-                                articles.append(
-                                    {"title": title, "link": link, "date": date_str}
-                                )
-                        else:
-                            logger.debug(
-                                f"[YTN] 다른 날짜 기사 무시: {date_str} - {title}"
-                            )
-
-        logger.info(f"[YTN] 총 {len(articles)}개의 기사 수집 완료")
-        return articles
-
-    async def _fetch_news(
-        self, session: aiohttp.ClientSession, page_number: int
-    ) -> Optional[Dict[str, Any]]:
-        formdata = aiohttp.FormData()
-        formdata.add_field("mcd", "0101")
-        formdata.add_field("page", str(page_number))
-
-        headers = {
-            "Referer": "https://www.ytn.co.kr/news/list.php?mcd=0101",
-            "User-Agent": self.random_user_agent(),
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Accept-Encoding": "gzip, deflate, br, zstd",
-            "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7,zh-CN;q=0.6,zh;q=0.5",
-        }
+    async def fetch_articles(self) -> list[ArticleDTO[YtnArticleMetadata]]:
+        """
+        YTN 최신 뉴스를 가져옵니다.
+        전체 카테고리(total)의 최신 뉴스를 수집합니다.
+        """
+        logger.info("[YTN API] 최신 뉴스 수집 시작")
 
         try:
-            async with session.post(
-                self.API_URL, data=formdata, headers=headers
-            ) as response:
-                if response.status == 200:
-                    data = await response.text()
-                    json_data = json.loads(data)
-                    if json_data:
-                        logger.info(f"[YTN] 페이지 {page_number} 데이터 수집 성공")
-                        return {"page": page_number, "data": json_data}
-                    else:
-                        logger.warning(
-                            f"[YTN] 페이지 {page_number}에 데이터가 없습니다"
+            async with aiohttp.ClientSession() as session:
+                # POST 요청 데이터 준비
+                payload = {"mcd": "total"}
+
+                # for_post=True로 설정하여 Content-Type 헤더가 포함된 헤더 생성
+                headers = create_ytn_headers(for_post=True)
+
+                async with session.post(
+                    self.API_URL, data=payload, headers=headers
+                ) as response:
+                    if response.status != 200:
+                        logger.error(
+                            f"[YTN API] 요청 실패 - 상태 코드: {response.status}"
                         )
-                        return None
-                else:
-                    logger.error(
-                        f"[YTN] 페이지 {page_number} 요청 실패 - 상태 코드: {response.status}"
+                        return []
+
+                    text_response = await response.text()
+
+                    try:
+                        # JavaScript 스타일의 JSON 정리 후 파싱
+                        cleaned_json = sanitize_js_style_json(text_response)
+                        data = json.loads(cleaned_json)
+                    except json.JSONDecodeError as e:
+                        logger.error(f"[YTN API] JSON 파싱 실패: {str(e)}")
+                        return []
+
+            articles: list[ArticleDTO[YtnArticleMetadata]] = []
+
+            for item in data:
+                try:
+                    article = YtnNewsArticle(**item)
+
+                    # 카테고리명 매핑
+                    category = CATEGORY_MAP.get(article["mcd"], "기타")
+
+                    # URL 생성
+                    url = f"https://www.ytn.co.kr/_ln/{article['mcd']}_{article['join_key']}"
+
+                    # 메타데이터 생성
+                    metadata = YtnArticleMetadata(
+                        platform="YTN",
+                        category=category,
+                        article_id=article["join_key"],
+                        category_code=article["mcd"],
+                        collected_at=datetime.now(),
                     )
-                    return None
+
+                    # ArticleDTO 생성
+                    article_dto = ArticleDTO[YtnArticleMetadata](
+                        title=article["title"],
+                        url=url,
+                        content="",  # YTN API에서는 내용 요약을 제공하지 않음
+                        metadata=metadata,
+                    )
+
+                    articles.append(article_dto)
+
+                except Exception as e:
+                    logger.warning(f"[YTN API] 기사 데이터 처리 중 오류: {str(e)}")
+                    continue
+
+            logger.info(f"[YTN API] 최신 뉴스 {len(articles)}건 수집 완료")
+            return articles
+
         except Exception as e:
-            logger.error(f"[YTN] 페이지 {page_number} 처리 중 오류 발생: {str(e)}")
-            return None
+            logger.error(f"[YTN API] 최신 뉴스 수집 중 오류 발생: {str(e)}")
+            return []

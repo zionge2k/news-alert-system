@@ -1,5 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, List, TypeVar
+
+from app.schemas.article import ArticleDTO, ArticleMetadata
+
+# ArticleMetadata를 상속받는 타입을 위한 타입 변수
+T = TypeVar("T", bound=ArticleMetadata)
 
 
 class Article(dict):
@@ -15,8 +20,8 @@ class BaseNewsCrawler(ABC):
     """
 
     @abstractmethod
-    async def fetch_articles(self) -> list[Article]:
+    async def fetch_articles(self) -> List[ArticleDTO[Any]]:
         """
-        주어진 키워드로 기사 목록을 수집
+        뉴스 기사 목록을 수집
         """
         pass

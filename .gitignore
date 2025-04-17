@@ -29,3 +29,6 @@ Thumbs.db
 # Docker
 *.log
 docker-compose.override.yml
+
+# Agent prompt
+.prompt.md

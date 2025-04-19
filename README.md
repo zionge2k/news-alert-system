@@ -13,13 +13,13 @@
 - ✅ **MongoDB 저장**: 수집된 뉴스 기사의 효율적인 저장 및 관리
 - ✅ **작업 큐 처리**: `Redis` 또는 `RabbitMQ`
 - ✅ **분석 및 전처리**: 키워드 기반 텍스트 분석
-- ✅ **알림 전송**: Slack Webhook 연동
+- ✅ **알림 전송**: discord 연동
 - ✅ **결과 API 제공**: `FastAPI`
-- ✅ **뉴스 저장**: `PostgreSQL`, `MongoDB`
+- ✅ **뉴스 저장**: `MongoDB`
 
 ## 프로젝트 구조
 
-```
+```bash
 news-alert-system/
 ├── app/                    # 핵심 애플리케이션 코드
 │   ├── crawler/            # 비동기 뉴스 크롤러
@@ -101,7 +101,7 @@ python scripts/count_documents.py
 
 `.env` 파일에 MongoDB 연결 정보를 설정하세요:
 
-```
+```env
 MONGODB_URL=mongodb://root:1234@localhost:27017
 MONGODB_DB_NAME=news_alert
 ```

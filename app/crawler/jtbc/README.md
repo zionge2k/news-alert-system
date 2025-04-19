@@ -4,11 +4,12 @@
 
 ### 섹션별 기사 목록 조회
 
-```
+```http
 GET https://news-api.jtbc.co.kr/v1/get/contents/section/list/articles
 ```
 
 #### 요청 파라미터
+
 - `pageNo`: 페이지 번호 (필수, 기본값: 1)
 - `pageSize`: 페이지 크기 (필수, 기본값: 10)
 - `articleListType`: 기사 목록 유형 (필수, 기본값: "ARTICLE")
@@ -62,43 +63,37 @@ interface ArticlesResponse {
 
 ```json
 {
-	"resultCode": "00",
-	"resultMessage": "성공적으로 조회하였습니다.",
-	"data": {
-		"currentPage": 1,
-		"pageSize": 10,
-		"totalPages": 47958,
-		"totalElements": 479573,
-		"list": [
-			{
-				"articleIdx": "NB12243049",
-				"articleTitle": "한미 협상카드 떠오른 '알래스카 LNG'…사업성 논란에 '신중론'",
-				"articleMobileTitle": null,
-				"articleInnerTextContent": "[앵커]\n\n상호 관세 문제를 놓고 우리 정부가 다음 주 미국과 본격 협상에 들어갑니다. 우리의 협상 카드로 거론되는 것 중 하나가 &#39;알래스카 가스관 개발 사업&#39;인데, 신중하게 접근해야 한다는 지적도 나옵니다.\n\n...",
-				"rank": null,
-				"articleThumbnailImgUrl": "https://thumb.jtbc.co.kr/photo/r600x0/news/cms/etc/2025/04/16/20250416193905600001.jpg",
-				"articleThumbnailImageViewType": "WIDTH",
-				"isVideoView": false,
-				"vodInfo": {
-					"videoIdx": "ND10696094",
-					"videoType": {
-						"code": "NORMAL",
-						"name": "일반"
-					},
-					"playTime": "02:01",
-					"vodThumbnailImgUrl": null
-				},
-				"publicationDate": "2025-04-16T19:37",
-				"journalistName": null,
-				"isScrap": false,
-				"readDate": null,
-				"expressionDate": null,
-				"scrapDate": null,
-				"bulletType": null,
-				"isComment": false
-			}
-		]
-	}
+  "resultCode": "00",
+  "resultMessage": "성공적으로 조회하였습니다.",
+  "data": {
+    "currentPage": 1,
+    "pageSize": 10,
+    "totalPages": 47958,
+    "totalElements": 479573,
+    "list": [
+      {
+        "articleIdx": "NB12243049",
+        "articleTitle": "한미 협상카드 떠오른 '알래스카 LNG'…사업성 논란에 '신중론'","articleMobileTitle": null,"articleInnerTextContent": "[앵커]\n\n상호 관세 문제를 놓고 우리 정부가 다음 주 미국과 본격 협상에 들어갑니다. 우리의 협상 카드로 거론되는 것 중 하나가 &#39;알래스카 가스관 개발 사업&#39;인데, 신중하게 접근해야 한다는 지적도 나옵니다.\n\n...","rank": null,
+        "articleThumbnailImgUrl": "https://thumb.jtbc.co.kr/photo/r600x0/news/cms/etc/2025/04/16/20250416193905600001.jpg","articleThumbnailImageViewType": "WIDTH","isVideoView": false,
+        "vodInfo": {
+          "videoIdx": "ND10696094",
+          "videoType": {
+            "code": "NORMAL",
+            "name": "일반"
+            },
+            "playTime": "02:01",
+            "vodThumbnailImgUrl": null
+            },
+        "publicationDate": "2025-04-16T19:37","journalistName": null,
+        "isScrap": false,
+        "readDate": null,
+        "expressionDate": null,
+        "scrapDate": null,
+        "bulletType": null,
+        "isComment": false
+      }
+    ]
+  }
 }
 ```
 
@@ -140,7 +135,8 @@ article_dto = ArticleDTO[JtbcArticleMetadata](
 ## URL 구조
 
 ### 기사 URL 패턴
-```
+
+```http
 https://news.jtbc.co.kr/article/[ARTICLE_ID]
 ```
 

@@ -4,14 +4,16 @@
 
 ### 헤드라인 뉴스 조회
 
-```
+```http
 GET https://imnews.imbc.com/operate/common/main/topnews/headline_news.js
 ```
 
 #### 요청 파라미터
+
 - 타임스탬프 (선택): `?YYYYMMDDHHMM=` 형식 (예: `?202504161301=`)
 
 #### 요청 헤더
+
 ```python
 {
     "Accept": "application/json, */*",                # JSON 응답 요청 (다른 형식도 허용)
@@ -24,11 +26,12 @@ GET https://imnews.imbc.com/operate/common/main/topnews/headline_news.js
 }
 ```
 
-> 참고: 
+> 참고:
 > - 모든 헤더는 `app.crawler.utils.headers.create_mbc_headers()` 함수를 통해 자동 생성됩니다.
 > - `User-Agent`는 fake_useragent 라이브러리를 통해 무작위로 생성됩니다.
 
 #### 응답 헤더
+
 ```http
 HTTP/2 200
 content-type: application/javascript; charset=utf-8
@@ -54,6 +57,7 @@ interface Article {
 ```
 
 응답은 일반 JSON이 아닌 JavaScript 변수 할당문 형태로 제공됩니다:
+
 ```javascript
 // 실제 응답 형식
 var newsData = {
@@ -118,7 +122,8 @@ article_dto = ArticleDTO[MbcArticleMetadata](
 ## URL 구조
 
 ### 기사 URL 패턴
-```
+
+```http
 https://imnews.imbc.com/news/[YEAR]/[SECTION]/article/[ARTICLE_ID]_[CATEGORY_ID].html
 ```
 

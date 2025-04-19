@@ -4,14 +4,16 @@
 
 ### 최신 뉴스 조회
 
-```
+```http
 POST https://www.ytn.co.kr/ajax/getManyNews.php
 ```
 
 #### 요청 파라미터
+
 - `mcd`: 카테고리 코드 (예: `total` - 전체 카테고리)
 
 #### 요청 헤더
+
 ```python
 {
     "Accept": "application/json, */*",                # JSON 응답 요청 (다른 형식도 허용)
@@ -25,11 +27,12 @@ POST https://www.ytn.co.kr/ajax/getManyNews.php
 }
 ```
 
-> 참고: 
+> 참고:
 > - 모든 헤더는 `app.crawler.utils.headers.create_ytn_headers()` 함수를 통해 자동 생성됩니다.
 > - `User-Agent`는 fake_useragent 라이브러리를 통해 무작위로 생성됩니다.
 
 #### 응답 헤더
+
 ```http
 HTTP/2 200 
 content-type: text/html; charset=UTF-8
@@ -44,7 +47,8 @@ x-amz-cf-id: zp-pfYkNEQAOfjpeiKbsTytltltvbnbaDhrdF6pApfCJaWCQxpGGgg==
 X-Firefox-Spdy: h2
 ```
 
-> 주의: 
+> 주의:
+>
 > - YTN API는 `content-type: text/html`로 응답하지만, 실제 내용은 JSON 형식입니다.
 > - 이 때문에 응답을 text로 받은 후 `sanitize_js_style_json` 함수를 통해 정리한 다음 JSON으로 파싱해야 합니다.
 > - 아래 코드와 같이 처리합니다:
@@ -65,6 +69,7 @@ interface Article {
 ```
 
 응답은 JSON 배열 형태로 제공됩니다:
+
 ```javascript
 // 실제 응답 형식
 Article[]
@@ -120,7 +125,8 @@ article_dto = ArticleDTO[YtnArticleMetadata](
 ## URL 구조
 
 ### 기사 URL 패턴
-```
+
+```http
 https://www.ytn.co.kr/_ln/[CATEGORY_CODE]_[JOIN_KEY]
 ```
 

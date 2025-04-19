@@ -3,25 +3,33 @@
 import asyncio
 import json
 from datetime import datetime
-from typing import TypedDict
+from typing import Any, Dict, Self, TypedDict
 
 import aiohttp
+from pydantic import Field
 
 from app.crawler.base import BaseNewsCrawler
 from app.crawler.utils.headers import create_ytn_headers
 from app.crawler.utils.json_cleaner import sanitize_js_style_json
+from app.schemas.api_models import BaseApiModel
 from app.schemas.article import ArticleDTO, ArticleMetadata
 from common.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-class YtnNewsArticle(TypedDict):
+class YtnNewsArticle(BaseApiModel):
     """YTN 뉴스 API 응답 데이터 구조"""
 
-    title: str  # 기사 제목
-    mcd: str  # 카테고리 코드
-    join_key: str  # 기사 고유 ID
+    title: str = Field(..., description="기사 제목")
+    mcd: str = Field(..., alias="mcd", description="카테고리 코드")
+    join_key: str = Field(..., alias="join_key", description="기사 고유 ID")
+
+    _default_values = {
+        "title": "",
+        "mcd": "",
+        "join_key": "",
+    }
 
 
 class YtnArticleMetadata(ArticleMetadata):
@@ -88,26 +96,32 @@ class YtnNewsApiCrawler(BaseNewsCrawler):
 
             for item in data:
                 try:
-                    article = YtnNewsArticle(**item)
+                    # Pydantic 모델 변환 (BaseApiModel에서 자동으로 None 값 처리)
+                    article = YtnNewsArticle.model_validate(item)
+
+                    # 필수 필드 확인 (Pydantic이 기본값을 설정했더라도 원래 비어있었는지 확인)
+                    if not article.title or not article.mcd or not article.join_key:
+                        logger.warning("[YTN API] 필수 필드가 누락된 데이터 건너뜀")
+                        continue
 
                     # 카테고리명 매핑
-                    category = CATEGORY_MAP.get(article["mcd"], "기타")
+                    category = CATEGORY_MAP.get(article.mcd, "기타")
 
                     # URL 생성
-                    url = f"https://www.ytn.co.kr/_ln/{article['mcd']}_{article['join_key']}"
+                    url = f"https://www.ytn.co.kr/_ln/{article.mcd}_{article.join_key}"
 
                     # 메타데이터 생성
                     metadata = YtnArticleMetadata(
                         platform="YTN",
                         category=category,
-                        article_id=article["join_key"],
-                        category_code=article["mcd"],
+                        article_id=article.join_key,
+                        category_code=article.mcd,
                         collected_at=datetime.now(),
                     )
 
                     # ArticleDTO 생성
                     article_dto = ArticleDTO[YtnArticleMetadata](
-                        title=article["title"],
+                        title=article.title,
                         url=url,
                         content="",  # YTN API에서는 내용 요약을 제공하지 않음
                         metadata=metadata,

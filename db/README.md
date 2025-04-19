@@ -41,8 +41,14 @@ MONGODB_DB_NAME=news_alert
 ```python
 from db.mongodb import MongoDB, init_mongodb, close_mongodb
 
-# 애플리케이션 시작 시 연결 초기화
+# 기본 설정으로 연결 초기화
 await init_mongodb()
+
+# 또는 커스텀 설정으로 초기화
+await init_mongodb(
+    mongodb_url="mongodb://custom-user:password@custom-host:27017",
+    db_name="custom_db_name"
+)
 
 # DB 인스턴스 가져오기
 db = MongoDB.get_database()

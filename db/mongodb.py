@@ -111,12 +111,18 @@ class MongoDB:
             raise
 
 
-async def init_mongodb() -> None:
+async def init_mongodb(
+    mongodb_url: Optional[str] = None, db_name: Optional[str] = None
+) -> None:
     """
     애플리케이션 시작 시 MongoDB를 초기화합니다.
     이 함수는 애플리케이션 시작 시점에 한 번 호출해야 합니다.
+
+    Args:
+        mongodb_url: MongoDB 연결 URL. 기본값은 환경 변수나 기본 URL입니다.
+        db_name: 사용할 데이터베이스 이름. 기본값은 클래스 상수나 환경 변수입니다.
     """
-    await MongoDB.connect()
+    await MongoDB.connect(mongodb_url, db_name)
     logger.info("MongoDB가 초기화되었습니다.")
 
 

@@ -17,10 +17,12 @@
 - 모델 및 저장소 설정 (app/models/, db/repositories/)
 
 사용법:
-    python scripts/run_all.py [--no-save]
+    python scripts/run_all.py [--no-save] [--mongodb-url URL] [--db-name NAME]
 
 옵션:
     --no-save: 크롤링만 실행하고 DB에 저장하지 않음
+    --mongodb-url: MongoDB 연결 URL (기본값: 환경변수 또는 기본값 사용)
+    --db-name: 데이터베이스 이름 (기본값: 환경변수 또는 기본값 사용)
 """
 import argparse
 import asyncio
@@ -51,6 +53,12 @@ def parse_arguments():
     parser.add_argument(
         "--no-save", action="store_true", help="크롤링만 실행하고 DB에 저장하지 않음"
     )
+    parser.add_argument(
+        "--mongodb-url", help="MongoDB 연결 URL (기본값: 환경변수 또는 기본값 사용)"
+    )
+    parser.add_argument(
+        "--db-name", help="데이터베이스 이름 (기본값: 환경변수 또는 기본값 사용)"
+    )
     return parser.parse_args()
 
 
@@ -68,7 +76,7 @@ async def main():
 
     try:
         # MongoDB 연결
-        await init_mongodb()
+        await init_mongodb(mongodb_url=args.mongodb_url, db_name=args.db_name)
         logger.info("MongoDB 연결 성공")
 
         # 1. 크롤링

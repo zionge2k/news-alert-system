@@ -1,9 +1,11 @@
 from datetime import datetime
-from typing import Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, Self, TypedDict
 
 import aiohttp
+from pydantic import Field
 
 from app.crawler.base import BaseNewsCrawler
+from app.schemas.api_models import BaseApiModel
 from app.schemas.article import ArticleDTO, ArticleMetadata
 from common.utils.logger import get_logger
 
@@ -23,16 +25,28 @@ CATEGORY_MAP = {
 }
 
 
-class JtbcArticle(TypedDict):
+class JtbcArticle(BaseApiModel):
     """JTBC 기사 API 응답 데이터 구조"""
 
-    articleIdx: str  # 기사 고유 ID
-    articleTitle: str  # 기사 제목
-    articleInnerTextContent: str  # 기사 내용
-    publicationDate: str  # 발행일
-    journalistName: str  # 기자 이름
-    isVideoView: bool  # 비디오 여부
-    vodInfo: dict  # 비디오 정보
+    article_idx: str = Field(..., alias="articleIdx", description="기사 고유 ID")
+    article_title: str = Field(..., alias="articleTitle", description="기사 제목")
+    article_inner_text_content: str = Field(
+        "", alias="articleInnerTextContent", description="기사 내용"
+    )
+    publication_date: str = Field("", alias="publicationDate", description="발행일")
+    journalist_name: str = Field("", alias="journalistName", description="기자 이름")
+    is_video_view: bool = Field(False, alias="isVideoView", description="비디오 여부")
+    vod_info: dict = Field(
+        default_factory=dict, alias="vodInfo", description="비디오 정보"
+    )
+
+    _default_values = {
+        "articleInnerTextContent": "",
+        "publicationDate": "",
+        "journalistName": "",
+        "isVideoView": False,
+        "vodInfo": {},
+    }
 
 
 class JtbcArticleMetadata(ArticleMetadata):
@@ -99,18 +113,23 @@ class JTBCNewsApiCrawler(BaseNewsCrawler):
                             if not title or not article_idx:
                                 continue
 
+                            # Pydantic 모델 변환 (BaseApiModel에서 자동으로 None 값 처리)
+                            article = JtbcArticle.model_validate(item)
+
                             # 메타데이터 및 컨텐츠 추출
-                            url = f"https://news.jtbc.co.kr/article/{article_idx}"
-                            content = self._extract_content(
-                                item.get("articleInnerTextContent", "")
+                            url = (
+                                f"https://news.jtbc.co.kr/article/{article.article_idx}"
                             )
-                            published_at = self._parse_date(item.get("publicationDate"))
-                            author = item.get("journalistName")
+                            content = self._extract_content(
+                                article.article_inner_text_content
+                            )
+                            published_at = self._parse_date(article.publication_date)
+                            author = article.journalist_name
 
                             # 비디오 정보 추출
-                            has_video = item.get("isVideoView", False)
+                            has_video = article.is_video_view
                             video_id = None
-                            if vod_info := item.get("vodInfo"):
+                            if vod_info := article.vod_info:
                                 has_video = True
                                 video_id = vod_info.get("videoIdx")
 
@@ -118,7 +137,7 @@ class JTBCNewsApiCrawler(BaseNewsCrawler):
                             metadata = JtbcArticleMetadata(
                                 platform="JTBC",
                                 category=category_name,
-                                article_id=article_idx,
+                                article_id=article.article_idx,
                                 published_at=published_at,
                                 collected_at=datetime.now(),
                                 updated_at=datetime.now(),
@@ -128,7 +147,7 @@ class JTBCNewsApiCrawler(BaseNewsCrawler):
 
                             # ArticleDTO 생성
                             article_dto = ArticleDTO[JtbcArticleMetadata](
-                                title=title,
+                                title=article.article_title,
                                 url=url,
                                 content=content,
                                 author=author,

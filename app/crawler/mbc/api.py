@@ -1,27 +1,34 @@
 import json
 from datetime import datetime
-from typing import TypedDict
+from typing import Any, Dict, Self, TypedDict
 
 import aiohttp
-from pydantic import BaseModel
+from pydantic import Field
 
 from app.crawler.base import BaseNewsCrawler
 from app.crawler.utils.headers import create_mbc_headers
 from app.crawler.utils.json_cleaner import sanitize_js_style_json
+from app.schemas.api_models import BaseApiModel
 from app.schemas.article import ArticleDTO, ArticleMetadata
 from common.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-class HeadlineArticle(TypedDict):
-    Section: str
-    AId: str
-    Title: str
-    Desc: str
-    Image: str
-    Link: str
-    IsVod: str
+class HeadlineArticle(BaseApiModel):
+    section: str = Field(..., alias="Section", description="뉴스 섹션/카테고리")
+    article_id: str = Field(..., alias="AId", description="기사 고유 ID")
+    title: str = Field(..., alias="Title", description="기사 제목")
+    desc: str = Field("", alias="Desc", description="기사 요약/설명")
+    image: str = Field("", alias="Image", description="기사 이미지 URL")
+    link: str = Field(..., alias="Link", description="기사 링크")
+    is_vod: str = Field("N", alias="IsVod", description="동영상 여부")
+
+    _default_values = {
+        "Desc": "",
+        "Image": "",
+        "IsVod": "N",
+    }
 
 
 class MbcArticleMetadata(ArticleMetadata):
@@ -70,32 +77,33 @@ class MbcNewsApiCrawler(BaseNewsCrawler):
             articles: list[ArticleDTO[MbcArticleMetadata]] = []
             for item in json_data.get("Data", []):
                 try:
-                    article = HeadlineArticle(**item)
+                    # Pydantic 모델 변환 (BaseApiModel에서 자동으로 None 값 처리)
+                    article = HeadlineArticle.model_validate(item)
 
                     # 이미지 URL 정규화
                     image_url = None
-                    if article["Image"]:
+                    if article.image:
                         image_url = (
-                            f"https:{article['Image']}"
-                            if article["Image"].startswith("//")
-                            else article["Image"]
+                            f"https:{article.image}"
+                            if article.image.startswith("//")
+                            else article.image
                         )
 
                     # 메타데이터 생성
                     metadata = MbcArticleMetadata(
                         platform="MBC",
-                        category=article["Section"],
-                        article_id=article["AId"],
-                        is_video=article["IsVod"] == "Y",
+                        category=article.section,
+                        article_id=article.article_id,
+                        is_video=article.is_vod == "Y",
                         image_url=image_url,
                         collected_at=datetime.now(),
                     )
 
                     # ArticleDTO 생성
                     article_dto = ArticleDTO[MbcArticleMetadata](
-                        title=article["Title"],
-                        url=article["Link"],
-                        content=article["Desc"],
+                        title=article.title,
+                        url=article.link,
+                        content=article.desc,
                         metadata=metadata,
                     )
 

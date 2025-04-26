@@ -8,7 +8,14 @@ Pydantic을 사용하여 스키마를 정의하고, Motor를 통해 MongoDB와 �
 from datetime import datetime
 from typing import Any, ClassVar, Dict, List, Optional
 
-from pydantic import BaseModel, Field, computed_field, field_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_serializer,
+    model_validator,
+)
 
 from app.schemas.article import ArticleDTO
 from common.utils.logger import get_logger
@@ -33,6 +40,12 @@ class MongoArticleMetadata(BaseModel):
         article_id: 플랫폼별 기사 고유 ID
         platform_specific: 플랫폼별 특수 메타데이터를 저장하는 사전
     """
+
+    # 모델 설정
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+    )
 
     platform: str
     category: Optional[str] = None
@@ -70,6 +83,13 @@ class ArticleModel(BaseModel):
         created_at: 문서 생성 시간
         updated_at: 문서 업데이트 시간
     """
+
+    # 모델 설정
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_schema_extra={"collection_name": "articles"},
+    )
 
     title: str
     url: str
@@ -188,7 +208,27 @@ class ArticleModel(BaseModel):
         if "_id" in document:
             document.pop("_id")
 
-        return cls(**document)
+        return cls.model_validate(document)
+
+    @model_validator(mode="before")
+    @classmethod
+    def process_mongodb_id(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        MongoDB에서 가져온 데이터를 처리하기 위한 검증기
+
+        특히 _id 필드를 처리합니다.
+
+        Args:
+            data: 입력 데이터
+
+        Returns:
+            처리된 데이터
+        """
+        # _id 필드가 있으면 제거
+        if isinstance(data, dict) and "_id" in data:
+            data.pop("_id")
+
+        return data
 
 
 async def create_article_indexes(db):

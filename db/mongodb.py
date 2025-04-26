@@ -105,6 +105,12 @@ class MongoDB:
         try:
             # 기사 모델 인덱스 생성
             await create_article_indexes(cls.db)
+
+            # 큐 모델 인덱스 생성
+            from app.models.queue import create_queue_indexes
+
+            await create_queue_indexes(cls.db)
+
             logger.info("MongoDB 인덱스가 성공적으로 생성되었습니다.")
         except Exception as e:
             logger.error(f"인덱스 생성 중 오류 발생: {str(e)}")

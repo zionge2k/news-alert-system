@@ -296,28 +296,22 @@ class MongoDBQueue(QueueInterface):
             logger.error(f"큐 상태 조회 중 오류: {str(e)}")
             return {status.value: 0 for status in QueueStatus}
 
-    async def clean_completed(self, days: int = 7) -> int:
+    async def clean_completed(self) -> int:
         """
-        일정 기간이 지난 완료된 아이템을 정리합니다.
-
-        Args:
-            days: 보관할 일수
+        완료된 모든 아이템을 정리합니다.
 
         Returns:
             int: 정리된 아이템 수
         """
-        cutoff_date = datetime.now() - timedelta(days=days)
-
         try:
             result = await self.collection.delete_many(
                 {
                     "status": QueueStatus.COMPLETED.value,
-                    "updated_at": {"$lt": cutoff_date},
                 }
             )
 
             deleted_count = result.deleted_count
-            logger.info(f"{deleted_count}개의 오래된 완료 아이템 정리됨")
+            logger.info(f"{deleted_count}개의 완료 아이템 정리됨")
             return deleted_count
 
         except Exception as e:

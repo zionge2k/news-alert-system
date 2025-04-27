@@ -111,6 +111,11 @@ class MongoDB:
 
             await create_queue_indexes(cls.db)
 
+            # 발행된 기사 인덱스 생성
+            from app.models.published import create_published_article_indexes
+
+            await create_published_article_indexes(cls.db)
+
             logger.info("MongoDB 인덱스가 성공적으로 생성되었습니다.")
         except Exception as e:
             logger.error(f"인덱스 생성 중 오류 발생: {str(e)}")

@@ -73,11 +73,14 @@ class QueueService:
 
             # 시간 필터 (N시간 이내)
             if hours > 0:
-                cutoff_time = datetime.now() - timedelta(hours=hours)
+                # ISODate 문자열로 변환하여 비교
+                cutoff_time = (datetime.now() - timedelta(hours=hours)).isoformat()
                 query["created_at"] = {"$gte": cutoff_time}
 
-            # 쿼리 실행 (최신순으로 정렬)
-            cursor = collection.find(query).sort("created_at", -1).limit(limit)
+            # 쿼리 실행 (실제 뉴스 발행 시간순으로 정렬, 최신순)
+            cursor = (
+                collection.find(query).sort("metadata.published_at", -1).limit(limit)
+            )
             articles = []
 
             # 기사 목록 수집
@@ -92,18 +95,32 @@ class QueueService:
             if total_found == 0:
                 return 0
 
+            # 이미 발행된 기사 ID 조회
+            from storage.published.services import published_article_service
+
+            published_ids = await published_article_service.get_published_article_ids(
+                platform="discord"  # Discord 플랫폼에 발행된 기사만 필터링
+            )
+
             # 큐에 추가 성공 카운트
             success_count = 0
+            skipped_count = 0
 
             # 각 기사를 큐에 추가
             for article in articles:
                 try:
+                    # 이미 발행된 기사인지 확인
+                    if article.unique_id in published_ids:
+                        # logger.info(f"이미 발행된 기사 건너뜀: {article.title}")
+                        skipped_count += 1
+                        continue
+
                     # ArticleModel을 QueueItem으로 변환
                     queue_item = QueueItem.create_from_article(article)
 
                     # 중복 확인
                     if await self.queue.is_duplicate(queue_item.unique_id):
-                        logger.info(f"이미 큐에 존재하는 기사: {queue_item.title}")
+                        # logger.info(f"이미 큐에 존재하는 기사: {queue_item.title}")
                         continue
 
                     # 큐에 추가
@@ -117,7 +134,7 @@ class QueueService:
                     continue
 
             logger.info(
-                f"DB에서 {total_found}개 기사 중 {success_count}개가 큐에 추가됨"
+                f"DB에서 {total_found}개 기사 중 {success_count}개가 큐에 추가됨, {skipped_count}개는 이미 발행됨"
             )
             return success_count
 
@@ -206,20 +223,17 @@ class QueueService:
             logger.error(f"큐 상태 조회 중 오류: {str(e)}")
             return {}
 
-    async def clean_old_articles(self, days: int = 7) -> int:
+    async def clean_old_articles(self) -> int:
         """
-        오래된 완료 기사를 정리합니다.
-
-        Args:
-            days: 보관할 일수
+        완료 상태의 기사를 큐에서 제거합니다.
 
         Returns:
-            int: 정리된 기사 수
+            int: 제거된 기사의 개수
         """
         try:
-            return await self.queue.clean_completed(days)
+            return await self.queue.clean_completed()
         except Exception as e:
-            logger.error(f"오래된 기사 정리 중 오류: {str(e)}")
+            logger.error(f"완료된 기사 제거 중 오류 발생: {e}")
             return 0
 
 

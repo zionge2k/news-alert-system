@@ -13,9 +13,9 @@ from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
 from app.models.queue import QueueItem, QueueStatus, get_queue_collection_name
+from app.storage.queue.interfaces import QueueInterface
 from common.utils.logger import get_logger
 from db.mongodb import MongoDB
-from storage.queue.interfaces import QueueInterface
 
 logger = get_logger(__name__)
 

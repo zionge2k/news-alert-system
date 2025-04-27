@@ -13,14 +13,14 @@ from pathlib import Path
 # 상위 디렉토리를 모듈 경로에 추가
 sys.path.append(str(Path(__file__).parent.parent))
 
+# 큐 서비스
+from app.storage.queue.services import queue_service
+
 # 로깅
 from common.utils.logger import get_logger
 
 # MongoDB 연결 관리
 from db.mongodb import close_mongodb, init_mongodb
-
-# 큐 서비스
-from storage.queue.services import queue_service
 
 # 로거 설정
 logger = get_logger(__name__)

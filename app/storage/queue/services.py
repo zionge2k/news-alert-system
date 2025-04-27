@@ -13,9 +13,9 @@ from typing import Dict, List, Optional
 
 from app.models.article import ArticleModel
 from app.models.queue import QueueItem, QueueStatus
+from app.storage.queue.mongodb_queue import mongodb_queue
 from common.utils.logger import get_logger
 from db.mongodb import MongoDB
-from storage.queue.mongodb_queue import mongodb_queue
 
 logger = get_logger(__name__)
 
@@ -96,7 +96,7 @@ class QueueService:
                 return 0
 
             # 이미 발행된 기사 ID 조회
-            from storage.published.services import published_article_service
+            from app.storage.published.services import published_article_service
 
             published_ids = await published_article_service.get_published_article_ids(
                 platform="discord"  # Discord 플랫폼에 발행된 기사만 필터링

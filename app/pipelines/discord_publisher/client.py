@@ -6,10 +6,9 @@ discord.py 라이브러리를 사용하여 메시지 전송 및 봇 관리를 �
 """
 
 import asyncio
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
-import discord
-from discord import Embed, File, Intents, Message, TextChannel
+from discord import Embed, Intents, Message, TextChannel
 from discord.ext import commands
 
 from app.pipelines.discord_publisher.config import discord_settings
@@ -51,6 +50,9 @@ class DiscordClient:
         @self.bot.event
         async def on_ready():
             """봇이 준비되었을 때 호출"""
+            if not self.bot.user:
+                logger.exception("<bot: %s> 봇이 준비되지 않았습니다.", self.bot)
+                raise RuntimeError("봇이 준비되지 않았습니다.")
             logger.info(f"{self.bot.user.name} 봇이 연결되었습니다.")
 
             # 채널 캐시 구성

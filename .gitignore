@@ -17,6 +17,7 @@ htmlcov/
 .env.*
 
 # IDEs
+.cursor/
 .vscode/
 .idea/
 *.sublime-project
@@ -32,3 +33,25 @@ docker-compose.override.yml
 
 # Agent prompt
 .prompt.md
+
+# Added by Claude Task Master
+# Logs
+logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dev-debug.log
+# Dependency directories
+node_modules/
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+# OS specific
+# Task files
+tasks.json
+tasks/ 

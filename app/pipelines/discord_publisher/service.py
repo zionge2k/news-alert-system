@@ -14,10 +14,10 @@ from app.models.queue import QueueItem, QueueStatus
 from app.pipelines.discord_publisher.client import DiscordClient, get_discord_client
 from app.pipelines.discord_publisher.config import discord_settings
 from app.pipelines.discord_publisher.formatters import ArticleFormatter
+from app.storage.published.services import published_article_service
+from app.storage.queue.mongodb_queue import mongodb_queue
+from app.storage.queue.services import QueueService
 from common.utils.logger import get_logger
-from storage.published.services import published_article_service
-from storage.queue.mongodb_queue import mongodb_queue
-from storage.queue.services import QueueService
 
 logger = get_logger(__name__)
 

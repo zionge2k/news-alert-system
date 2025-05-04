@@ -4,23 +4,22 @@ Discord 발행 설정 모듈
 이 모듈은 Discord 봇 설정 및 환경 변수를 관리합니다.
 """
 
-import os
-from typing import Any, ClassVar, Dict, Optional
+from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class DiscordSettings(BaseModel):
+class DiscordSettings(BaseSettings):
     """
     Discord 봇 설정
-
-    환경 변수에서 설정을 로드합니다.
     """
 
     # Pydantic v2에서는 model_config를 클래스 변수로 정의
-    model_config: ClassVar[Dict[str, Any]] = {
-        "extra": "ignore",
-    }
+    model_config = SettingsConfigDict(
+        extra="ignore",
+        env_prefix="DISCORD_",  # 환경 변수 접두사 설정
+    )
 
     # 필수 설정
     BOT_TOKEN: str = Field(default="", description="Discord 봇 토큰")
@@ -53,43 +52,6 @@ class DiscordSettings(BaseModel):
         """
         return self.CHANNEL_DEFAULT
 
-    @classmethod
-    def from_env(cls) -> "DiscordSettings":
-        """
-        환경 변수에서 설정을 로드합니다.
-
-        Returns:
-            DiscordSettings: 설정 인스턴스
-        """
-        # 환경 변수에서 값 가져오기
-        bot_token = os.environ.get("DISCORD_BOT_TOKEN", "")
-        channel_default = os.environ.get("DISCORD_CHANNEL_DEFAULT", "")
-        error_channel_id = os.environ.get("DISCORD_ERROR_CHANNEL_ID")
-
-        # 발행 설정
-        publish_interval = int(os.environ.get("DISCORD_PUBLISH_INTERVAL", "60"))
-        batch_size = int(os.environ.get("DISCORD_BATCH_SIZE", "20"))
-        max_retries = int(os.environ.get("DISCORD_MAX_RETRIES", "3"))
-
-        # 메시지 설정
-        try:
-            embed_color = int(os.environ.get("DISCORD_EMBED_COLOR", "0x3498db"), 0)
-        except ValueError:
-            embed_color = 0x3498DB
-
-        footer_text = os.environ.get("DISCORD_FOOTER_TEXT", "뉴스 알리미")
-
-        return cls(
-            BOT_TOKEN=bot_token,
-            CHANNEL_DEFAULT=channel_default,
-            ERROR_CHANNEL_ID=error_channel_id,
-            PUBLISH_INTERVAL=publish_interval,
-            BATCH_SIZE=batch_size,
-            MAX_RETRIES=max_retries,
-            EMBED_COLOR=embed_color,
-            FOOTER_TEXT=footer_text,
-        )
-
 
 # 설정 인스턴스 생성
-discord_settings = DiscordSettings.from_env()
+discord_settings = DiscordSettings()

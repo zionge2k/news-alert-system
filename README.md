@@ -29,7 +29,7 @@ news-alert-system/
 │   │   ├── registry.py     # 크롤러 레지스트리
 │   │   └── base.py         # 기본 크롤러 인터페이스
 │   ├── processor/          # 텍스트 전처리 및 키워드 분석
-│   ├── notifier/           # Slack 알림 모듈
+│   ├── notifier/           # discord 알림 모듈
 │   ├── api/                # FastAPI 엔드포인트
 │   ├── models/             # DB 모델 정의
 │   └── schemas/            # Pydantic 스키마

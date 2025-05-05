@@ -6,8 +6,8 @@ from typing import Any, Dict, Optional, Type, TypeVar
 
 from infra.database.base import Database
 from infra.database.mongodb import MongoDB
-from infra.database.repository import ArticleRepository
-from infra.database.repository.mongodb import MongoArticleRepository
+from infra.database.repository.article import ArticleRepository
+from infra.database.repository.mongodb.article import MongoArticleRepository
 
 T = TypeVar("T")
 

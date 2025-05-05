@@ -5,12 +5,10 @@ This module defines the interface for article data repositories.
 All article repository implementations must adhere to this interface.
 """
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel
-
-from infra.database.repository import Repository
 
 
 class ArticleModel(BaseModel):
@@ -24,11 +22,93 @@ class ArticleModel(BaseModel):
     metadata: Dict[str, Any]
 
 
-class ArticleRepository(Repository[ArticleModel, str]):
+class ArticleRepository(ABC):
     """
     Interface for article repositories.
-    Extends the generic Repository interface with article-specific methods.
+    Defines the specific methods for article-related operations.
     """
+
+    @abstractmethod
+    async def find_by_id(self, id: str) -> Optional[ArticleModel]:
+        """
+        Find an article by its ID.
+
+        Args:
+            id: The ID of the article to find
+
+        Returns:
+            The article if found, None otherwise
+        """
+        pass
+
+    @abstractmethod
+    async def find_all(self) -> List[ArticleModel]:
+        """
+        Find all articles.
+
+        Returns:
+            A list of all articles
+        """
+        pass
+
+    @abstractmethod
+    async def find_by(self, criteria: Dict[str, Any]) -> List[ArticleModel]:
+        """
+        Find articles matching the given criteria.
+
+        Args:
+            criteria: Dictionary of field name to value mappings to match
+
+        Returns:
+            A list of articles matching the criteria
+        """
+        pass
+
+    @abstractmethod
+    async def save(self, article: ArticleModel) -> ArticleModel:
+        """
+        Save an article (create or update).
+
+        Args:
+            article: The article to save
+
+        Returns:
+            The saved article with any updates (e.g., generated ID)
+        """
+        pass
+
+    @abstractmethod
+    async def save_all(self, articles: List[ArticleModel]) -> List[ArticleModel]:
+        """
+        Save multiple articles.
+
+        Args:
+            articles: The articles to save
+
+        Returns:
+            The saved articles with any updates
+        """
+        pass
+
+    @abstractmethod
+    async def delete(self, id: str) -> None:
+        """
+        Delete an article by its ID.
+
+        Args:
+            id: The ID of the article to delete
+        """
+        pass
+
+    @abstractmethod
+    async def count(self) -> int:
+        """
+        Count all articles.
+
+        Returns:
+            The number of articles
+        """
+        pass
 
     @abstractmethod
     async def find_by_platform(self, platform: str) -> List[ArticleModel]:

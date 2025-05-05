@@ -27,6 +27,9 @@ build-backend = "poetry.core.masonry.api"
 pre-commit = "^4.2.0"
 black = "^25.1.0"
 isort = "^6.0.1"
+pytest = "^7.4.3"
+pytest-cov = "^4.1.0"
+pytest-asyncio = "^0.23.2"
 
 [tool.black]
 line-length = 88
@@ -36,3 +39,31 @@ target-version = ['py311']
 profile = "black"
 line_length = 88
 combine_as_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+markers = [
+    "unit: 단위 테스트",
+    "integration: 통합 테스트",
+    "functional: 기능 테스트",
+    "slow: 실행 시간이 긴 테스트",
+    "api: API 호출 테스트",
+    "db: 데이터베이스 테스트"
+]
+
+[tool.coverage.run]
+source = ["app", "common", "pipelines"]
+omit = ["*/tests/*", "*/venv/*", "*/.venv/*", "*/docs/*", "*/scripts/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "pass",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "@abstract"
+]

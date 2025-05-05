@@ -1,0 +1,32 @@
+{
+  "items": [
+    {
+      "title": "세계 경제 전망, 올해 하반기부터 회복세 전망",
+      "link": "https://example.com/news/economy/12345",
+      "description": "주요 경제 연구소에 따르면 세계 경제는 올해 하반기부터 점진적 회복세를 보일 것으로 예측됩니다.",
+      "pubDate": "2023-09-15T09:30:00+09:00",
+      "author": "경제부 김기자",
+      "category": "경제"
+    },
+    {
+      "title": "신규 기술 기업 투자 증가세, 전년 대비 15% 상승",
+      "link": "https://example.com/news/tech/67890",
+      "description": "올해 1분기 기술 스타트업 투자액이 전년 동기 대비 15% 증가했다고 발표되었습니다.",
+      "pubDate": "2023-09-15T10:15:00+09:00",
+      "author": "테크부 이기자",
+      "category": "기술"
+    },
+    {
+      "title": "환경부, 신재생 에너지 전환 계획 발표",
+      "link": "https://example.com/news/environment/54321",
+      "description": "환경부가 2030년까지 신재생 에너지 비중을 30%까지 확대하는 계획을 발표했습니다.",
+      "pubDate": "2023-09-15T11:00:00+09:00",
+      "author": "환경부 박기자",
+      "category": "환경"
+    }
+  ],
+  "total": 3,
+  "start": 1,
+  "display": 3,
+  "lastBuildDate": "2023-09-15T12:00:00+09:00"
+} 

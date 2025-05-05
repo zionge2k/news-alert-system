@@ -11,6 +11,9 @@ __pycache__/
 .coverage
 htmlcov/
 *.cover
+.pytest_cache/
+coverage.xml
+.coverage.*
 
 # Environment variables
 .env

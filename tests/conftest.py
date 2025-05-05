@@ -3,17 +3,23 @@
 이 파일은 pytest에 의해 자동으로 발견되며, 모든 테스트에서 공유됩니다.
 """
 
-import asyncio
-import json
+# 가장 먼저 프로젝트 루트를 Python 경로에 추가
 import os
 import sys
+
+# 프로젝트 루트를 Python path에 추가
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+    print(f"Added {project_root} to Python path")
+
+# 필요한 모듈 가져오기
+import asyncio
+import json
 from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-# 프로젝트 루트 경로를 sys.path에 추가하여 어디서든 프로젝트 모듈을 임포트할 수 있게 합니다.
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # tests.helpers 모듈 임포트
 from tests.helpers import dummy_article_dto, load_test_data

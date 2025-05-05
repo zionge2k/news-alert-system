@@ -8,6 +8,7 @@ __pycache__/
 
 # Pytest / coverage
 .cache/
+coverage/
 .coverage
 htmlcov/
 *.cover

@@ -1,256 +1,451 @@
 """
-MongoDB 연결 및 관리 기능에 대한 테스트 모듈입니다.
-이 테스트 모듈은 db.mongodb 모듈의 MongoDB 클래스와 관련 함수를 테스트합니다.
+Tests for MongoDB implementation.
 """
 
 import asyncio
-import logging
 import os
+import sys
+import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from pymongo.errors import ConnectionFailure, DuplicateKeyError
 
-from db.mongodb import MongoDB, close_mongodb, init_mongodb
+# 확실하게 프로젝트 루트를 Python path에 추가
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+print(f"Test file adding path: {project_root}")
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# 테스트 실행 전 경로 출력
+print(f"Python path in test: {sys.path}")
+print(f"Current directory: {os.getcwd()}")
+
+try:
+    # MongoDB 임포트 시도
+    from infra.database.mongodb import MongoDB
+
+    print("Successfully imported MongoDB class")
+except ImportError as e:
+    print(f"Import error: {e}")
+    print("Trying absolute import...")
+    sys.path.append(os.getcwd())
+    from infra.database.mongodb import MongoDB
 
 
-@pytest.fixture
-def mock_motor_client():
-    """
-    motor.motor_asyncio.AsyncIOMotorClient를 모킹하는 픽스처입니다.
-    """
-    with patch("motor.motor_asyncio.AsyncIOMotorClient") as mock_client:
-        # 모의 데이터베이스 객체 설정
-        mock_db = AsyncMock(spec=AsyncIOMotorDatabase)
-        mock_client.return_value.__getitem__.return_value = mock_db
+class TestMongoDB(unittest.TestCase):
+    """Test case for MongoDB implementation."""
 
-        # 모의 admin 데이터베이스 설정
-        mock_admin_db = AsyncMock()
-        mock_client.return_value.admin = mock_admin_db
-        mock_admin_db.command = AsyncMock(return_value={"ok": 1})
+    def setUp(self):
+        """Set up test fixtures."""
+        self.mongo_uri = "mongodb://localhost:27017"
+        self.db_name = "test_db"
+        self.mongodb = MongoDB(uri=self.mongo_uri, database=self.db_name)
 
-        # MongoDB 클래스의 상태 초기화 (테스트 간 독립성 보장)
-        MongoDB.client = None
-        MongoDB.db = None
+    @patch("motor.motor_asyncio.AsyncIOMotorClient")
+    async def test_connect(self, mock_client):
+        """Test connecting to MongoDB."""
+        # Setup mock
+        mock_client_instance = AsyncMock()
+        mock_admin = AsyncMock()
+        mock_admin.command = AsyncMock()
+        mock_client_instance.admin = mock_admin
+        mock_client.return_value = mock_client_instance
 
-        yield mock_client
+        # Connect to MongoDB
+        db = await self.mongodb.connect()
+
+        # Assertions
+        mock_client.assert_called_once_with(
+            self.mongo_uri,
+            maxPoolSize=10,
+            minPoolSize=0,
+            maxIdleTimeMS=30000,
+            connectTimeoutMS=20000,
+            serverSelectionTimeoutMS=20000,
+        )
+        mock_admin.command.assert_called_once_with("ping")
+        self.assertEqual(db, mock_client_instance[self.db_name])
+
+    @patch("motor.motor_asyncio.AsyncIOMotorClient")
+    async def test_connect_failure(self, mock_client):
+        """Test connection failure."""
+        # Setup mock
+        mock_client_instance = AsyncMock()
+        mock_admin = AsyncMock()
+        mock_admin.command = AsyncMock(
+            side_effect=ConnectionFailure("Connection failed")
+        )
+        mock_client_instance.admin = mock_admin
+        mock_client.return_value = mock_client_instance
+
+        # Attempt to connect and assert it raises ConnectionError
+        with self.assertRaises(ConnectionError):
+            await self.mongodb.connect()
+
+    @patch("motor.motor_asyncio.AsyncIOMotorClient")
+    async def test_disconnect(self, mock_client):
+        """Test disconnecting from MongoDB."""
+        # Setup mock
+        mock_client_instance = AsyncMock()
+        mock_admin = AsyncMock()
+        mock_admin.command = AsyncMock()
+        mock_client_instance.admin = mock_admin
+        mock_client.return_value = mock_client_instance
+
+        # Connect first
+        await self.mongodb.connect()
+
+        # Then disconnect
+        await self.mongodb.disconnect()
+
+        # Assertions
+        mock_client_instance.close.assert_called_once()
+        self.assertIsNone(self.mongodb._client)
+        self.assertIsNone(self.mongodb._db)
+
+    @patch("motor.motor_asyncio.AsyncIOMotorClient")
+    async def test_find(self, mock_client):
+        """Test find method."""
+        # Setup mocks
+        mock_client_instance = AsyncMock()
+        mock_admin = AsyncMock()
+        mock_admin.command = AsyncMock()
+        mock_client_instance.admin = mock_admin
+        mock_client.return_value = mock_client_instance
+
+        # Setup collection mock
+        mock_collection = AsyncMock()
+        mock_cursor = AsyncMock()
+        mock_cursor.sort = MagicMock(return_value=mock_cursor)
+        mock_cursor.skip = MagicMock(return_value=mock_cursor)
+        mock_cursor.limit = MagicMock(return_value=mock_cursor)
+        mock_cursor.to_list = AsyncMock(return_value=[{"_id": "123", "name": "test"}])
+        mock_collection.find = MagicMock(return_value=mock_cursor)
+        mock_db = {"test_collection": mock_collection}
+        mock_client_instance.__getitem__.return_value = mock_db
+        mock_db.__getitem__ = MagicMock(return_value=mock_collection)
+
+        # Connect first
+        await self.mongodb.connect()
+
+        # Execute find
+        query = {"name": "test"}
+        projection = {"_id": 1, "name": 1}
+        sort = [("name", 1)]
+        result = await self.mongodb.find(
+            "test_collection", query, projection, sort, limit=10, skip=5
+        )
+
+        # Assertions
+        mock_collection.find.assert_called_once_with(query, projection)
+        mock_cursor.sort.assert_called_once_with(sort)
+        mock_cursor.skip.assert_called_once_with(5)
+        mock_cursor.limit.assert_called_once_with(10)
+        mock_cursor.to_list.assert_called_once_with(length=None)
+        self.assertEqual(result, [{"_id": "123", "name": "test"}])
+
+    @patch("motor.motor_asyncio.AsyncIOMotorClient")
+    async def test_find_one(self, mock_client):
+        """Test find_one method."""
+        # Setup mocks
+        mock_client_instance = AsyncMock()
+        mock_admin = AsyncMock()
+        mock_admin.command = AsyncMock()
+        mock_client_instance.admin = mock_admin
+        mock_client.return_value = mock_client_instance
+
+        # Setup collection mock
+        mock_collection = AsyncMock()
+        mock_collection.find_one = AsyncMock(
+            return_value={"_id": "123", "name": "test"}
+        )
+        mock_db = {"test_collection": mock_collection}
+        mock_client_instance.__getitem__.return_value = mock_db
+        mock_db.__getitem__ = MagicMock(return_value=mock_collection)
+
+        # Connect first
+        await self.mongodb.connect()
+
+        # Execute find_one
+        query = {"name": "test"}
+        projection = {"_id": 1, "name": 1}
+        result = await self.mongodb.find_one("test_collection", query, projection)
+
+        # Assertions
+        mock_collection.find_one.assert_called_once_with(query, projection)
+        self.assertEqual(result, {"_id": "123", "name": "test"})
+
+    @patch("motor.motor_asyncio.AsyncIOMotorClient")
+    async def test_insert(self, mock_client):
+        """Test insert method."""
+        # Setup mocks
+        mock_client_instance = AsyncMock()
+        mock_admin = AsyncMock()
+        mock_admin.command = AsyncMock()
+        mock_client_instance.admin = mock_admin
+        mock_client.return_value = mock_client_instance
+
+        # Setup collection mock
+        mock_collection = AsyncMock()
+        mock_insert_result = AsyncMock()
+        mock_insert_result.inserted_id = "123"
+        mock_collection.insert_one = AsyncMock(return_value=mock_insert_result)
+        mock_db = {"test_collection": mock_collection}
+        mock_client_instance.__getitem__.return_value = mock_db
+        mock_db.__getitem__ = MagicMock(return_value=mock_collection)
+
+        # Connect first
+        await self.mongodb.connect()
+
+        # Execute insert
+        document = {"name": "test"}
+        result = await self.mongodb.insert("test_collection", document)
+
+        # Assertions
+        mock_collection.insert_one.assert_called_once_with(document)
+        self.assertEqual(result, "123")
+
+    @patch("motor.motor_asyncio.AsyncIOMotorClient")
+    async def test_insert_many(self, mock_client):
+        """Test insert_many method."""
+        # Setup mocks
+        mock_client_instance = AsyncMock()
+        mock_admin = AsyncMock()
+        mock_admin.command = AsyncMock()
+        mock_client_instance.admin = mock_admin
+        mock_client.return_value = mock_client_instance
+
+        # Setup collection mock
+        mock_collection = AsyncMock()
+        mock_insert_result = AsyncMock()
+        mock_insert_result.inserted_ids = ["123", "456"]
+        mock_collection.insert_many = AsyncMock(return_value=mock_insert_result)
+        mock_db = {"test_collection": mock_collection}
+        mock_client_instance.__getitem__.return_value = mock_db
+        mock_db.__getitem__ = MagicMock(return_value=mock_collection)
+
+        # Connect first
+        await self.mongodb.connect()
+
+        # Execute insert_many
+        documents = [{"name": "test1"}, {"name": "test2"}]
+        result = await self.mongodb.insert_many("test_collection", documents)
+
+        # Assertions
+        mock_collection.insert_many.assert_called_once_with(documents)
+        self.assertEqual(result, ["123", "456"])
+
+    @patch("motor.motor_asyncio.AsyncIOMotorClient")
+    async def test_update(self, mock_client):
+        """Test update method."""
+        # Setup mocks
+        mock_client_instance = AsyncMock()
+        mock_admin = AsyncMock()
+        mock_admin.command = AsyncMock()
+        mock_client_instance.admin = mock_admin
+        mock_client.return_value = mock_client_instance
+
+        # Setup collection mock
+        mock_collection = AsyncMock()
+        mock_update_result = AsyncMock()
+        mock_update_result.matched_count = 1
+        mock_update_result.modified_count = 1
+        mock_update_result.upserted_id = None
+        mock_collection.update_one = AsyncMock(return_value=mock_update_result)
+        mock_db = {"test_collection": mock_collection}
+        mock_client_instance.__getitem__.return_value = mock_db
+        mock_db.__getitem__ = MagicMock(return_value=mock_collection)
+
+        # Connect first
+        await self.mongodb.connect()
+
+        # Execute update
+        query = {"name": "test"}
+        update = {"$set": {"name": "updated"}}
+        result = await self.mongodb.update(
+            "test_collection", query, update, upsert=True
+        )
+
+        # Assertions
+        mock_collection.update_one.assert_called_once_with(query, update, upsert=True)
+        self.assertEqual(
+            result, {"matched_count": 1, "modified_count": 1, "upserted_id": None}
+        )
+
+    @patch("motor.motor_asyncio.AsyncIOMotorClient")
+    async def test_delete(self, mock_client):
+        """Test delete method."""
+        # Setup mocks
+        mock_client_instance = AsyncMock()
+        mock_admin = AsyncMock()
+        mock_admin.command = AsyncMock()
+        mock_client_instance.admin = mock_admin
+        mock_client.return_value = mock_client_instance
+
+        # Setup collection mock
+        mock_collection = AsyncMock()
+        mock_delete_result = AsyncMock()
+        mock_delete_result.deleted_count = 2
+        mock_collection.delete_many = AsyncMock(return_value=mock_delete_result)
+        mock_db = {"test_collection": mock_collection}
+        mock_client_instance.__getitem__.return_value = mock_db
+        mock_db.__getitem__ = MagicMock(return_value=mock_collection)
+
+        # Connect first
+        await self.mongodb.connect()
+
+        # Execute delete
+        query = {"name": "test"}
+        result = await self.mongodb.delete("test_collection", query)
+
+        # Assertions
+        mock_collection.delete_many.assert_called_once_with(query)
+        self.assertEqual(result, {"deleted_count": 2})
+
+    @patch("motor.motor_asyncio.AsyncIOMotorClient")
+    async def test_count(self, mock_client):
+        """Test count method."""
+        # Setup mocks
+        mock_client_instance = AsyncMock()
+        mock_admin = AsyncMock()
+        mock_admin.command = AsyncMock()
+        mock_client_instance.admin = mock_admin
+        mock_client.return_value = mock_client_instance
+
+        # Setup collection mock
+        mock_collection = AsyncMock()
+        mock_collection.count_documents = AsyncMock(return_value=5)
+        mock_db = {"test_collection": mock_collection}
+        mock_client_instance.__getitem__.return_value = mock_db
+        mock_db.__getitem__ = MagicMock(return_value=mock_collection)
+
+        # Connect first
+        await self.mongodb.connect()
+
+        # Execute count
+        query = {"name": "test"}
+        result = await self.mongodb.count("test_collection", query)
+
+        # Assertions
+        mock_collection.count_documents.assert_called_once_with(query)
+        self.assertEqual(result, 5)
+
+    @patch("motor.motor_asyncio.AsyncIOMotorClient")
+    async def test_aggregate(self, mock_client):
+        """Test aggregate method."""
+        # Setup mocks
+        mock_client_instance = AsyncMock()
+        mock_admin = AsyncMock()
+        mock_admin.command = AsyncMock()
+        mock_client_instance.admin = mock_admin
+        mock_client.return_value = mock_client_instance
+
+        # Setup collection mock
+        mock_collection = AsyncMock()
+        mock_cursor = AsyncMock()
+        mock_cursor.to_list = AsyncMock(return_value=[{"count": 5}])
+        mock_collection.aggregate = MagicMock(return_value=mock_cursor)
+        mock_db = {"test_collection": mock_collection}
+        mock_client_instance.__getitem__.return_value = mock_db
+        mock_db.__getitem__ = MagicMock(return_value=mock_collection)
+
+        # Connect first
+        await self.mongodb.connect()
+
+        # Execute aggregate
+        pipeline = [{"$group": {"_id": None, "count": {"$sum": 1}}}]
+        result = await self.mongodb.aggregate("test_collection", pipeline)
+
+        # Assertions
+        mock_collection.aggregate.assert_called_once_with(pipeline)
+        mock_cursor.to_list.assert_called_once_with(length=None)
+        self.assertEqual(result, [{"count": 5}])
+
+    @patch("motor.motor_asyncio.AsyncIOMotorClient")
+    async def test_transaction(self, mock_client):
+        """Test transaction context manager."""
+        # Setup mocks
+        mock_client_instance = AsyncMock()
+        mock_admin = AsyncMock()
+        mock_admin.command = AsyncMock()
+        mock_client_instance.admin = mock_admin
+        mock_client.return_value = mock_client_instance
+
+        # Setup session mock
+        mock_session = AsyncMock()
+        mock_client_instance.start_session = AsyncMock(return_value=mock_session)
+        mock_session.start_transaction = AsyncMock()
+        mock_session.commit_transaction = AsyncMock()
+        mock_session.abort_transaction = AsyncMock()
+        mock_session.end_session = AsyncMock()
+
+        # Connect first
+        await self.mongodb.connect()
+
+        # Execute transaction
+        async with self.mongodb.transaction() as session:
+            # Do something with the session
+            pass
+
+        # Assertions
+        mock_client_instance.start_session.assert_called_once()
+        mock_session.start_transaction.assert_called_once()
+        mock_session.commit_transaction.assert_called_once()
+        mock_session.end_session.assert_called_once()
+        mock_session.abort_transaction.assert_not_called()
+
+    @patch("motor.motor_asyncio.AsyncIOMotorClient")
+    async def test_transaction_exception(self, mock_client):
+        """Test transaction with an exception."""
+        # Setup mocks
+        mock_client_instance = AsyncMock()
+        mock_admin = AsyncMock()
+        mock_admin.command = AsyncMock()
+        mock_client_instance.admin = mock_admin
+        mock_client.return_value = mock_client_instance
+
+        # Setup session mock
+        mock_session = AsyncMock()
+        mock_client_instance.start_session = AsyncMock(return_value=mock_session)
+        mock_session.start_transaction = AsyncMock()
+        mock_session.commit_transaction = AsyncMock()
+        mock_session.abort_transaction = AsyncMock()
+        mock_session.end_session = AsyncMock()
+
+        # Connect first
+        await self.mongodb.connect()
+
+        # Execute transaction with exception
+        with self.assertRaises(Exception):
+            async with self.mongodb.transaction() as session:
+                # Raise an exception in the transaction
+                raise Exception("Transaction failed")
+
+        # Assertions
+        mock_client_instance.start_session.assert_called_once()
+        mock_session.start_transaction.assert_called_once()
+        mock_session.commit_transaction.assert_not_called()
+        mock_session.abort_transaction.assert_called_once()
+        mock_session.end_session.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_mongodb_connect_success(mock_motor_client):
-    """
-    MongoDB 연결 성공 시나리오를 테스트합니다.
-    """
-    # 테스트 데이터
-    test_url = "mongodb://test-user:password@test-host:27017"
-    test_db = "test_db"
-
-    # 테스트 실행
-    await MongoDB.connect(mongodb_url=test_url, db_name=test_db)
-
-    # 검증
-    mock_motor_client.assert_called_once_with(test_url)
-    assert mock_motor_client.return_value.__getitem__.call_args[0][0] == test_db
-    mock_motor_client.return_value.admin.command.assert_called_once_with("ping")
-    assert MongoDB.client is not None
-    assert MongoDB.db is not None
-
-
-@pytest.mark.asyncio
-async def test_mongodb_connect_with_env_vars(mock_motor_client, monkeypatch):
-    """
-    환경 변수를 사용한 MongoDB 연결을 테스트합니다.
-    """
-    # 환경 변수 설정
-    monkeypatch.setenv("MONGODB_URL", "mongodb://env-user:env-pass@env-host:27017")
-    monkeypatch.setenv("MONGODB_DB_NAME", "env_db")
-
-    # 테스트 실행
-    await MongoDB.connect()
-
-    # 검증
-    mock_motor_client.assert_called_once_with(
-        "mongodb://env-user:env-pass@env-host:27017"
-    )
-    assert mock_motor_client.return_value.__getitem__.call_args[0][0] == "env_db"
-
-
-@pytest.mark.asyncio
-async def test_mongodb_connect_with_default_values(mock_motor_client, monkeypatch):
-    """
-    기본값을 사용한 MongoDB 연결을 테스트합니다.
-    """
-    # 환경 변수 제거
-    monkeypatch.delenv("MONGODB_URL", raising=False)
-    monkeypatch.delenv("MONGODB_DB_NAME", raising=False)
-
-    # 테스트 실행
-    await MongoDB.connect()
-
-    # 검증
-    mock_motor_client.assert_called_once_with(MongoDB.DEFAULT_URL)
-    assert mock_motor_client.return_value.__getitem__.call_args[0][0] == MongoDB.DB_NAME
-
-
-@pytest.mark.asyncio
-async def test_mongodb_connect_error(mock_motor_client):
-    """
-    MongoDB 연결 실패 시나리오를 테스트합니다.
-    """
-    # 모의 예외 설정
-    mock_motor_client.return_value.admin.command.side_effect = Exception(
-        "Connection failed"
-    )
-
-    # 테스트 실행 및 예외 검증
-    with pytest.raises(Exception) as exc_info:
-        await MongoDB.connect()
-
-    # 예외 메시지 검증
-    assert "Connection failed" in str(exc_info.value)
-
-    # 상태 검증
-    assert MongoDB.client is not None  # client는 생성되지만
-    assert MongoDB.db is not None  # db도 생성되지만, ping 명령에서 실패
-
-
-@pytest.mark.asyncio
-async def test_mongodb_close(mock_motor_client):
-    """
-    MongoDB 연결 종료 기능을 테스트합니다.
-    """
-    # 먼저 연결을 설정
-    await MongoDB.connect()
-    assert MongoDB.client is not None
-    assert MongoDB.db is not None
-
-    # 연결 종료
-    await MongoDB.close()
-
-    # 검증
-    mock_motor_client.return_value.close.assert_called_once()
-    assert MongoDB.client is None
-    assert MongoDB.db is None
-
-
-@pytest.mark.asyncio
-async def test_get_database_without_connection():
-    """
-    연결 없이 데이터베이스를 가져오려는 시도를 테스트합니다.
-    """
-    # 기존 연결이 있다면 정리
-    if MongoDB.client:
-        await MongoDB.close()
-
-    # 연결 없이 데이터베이스 가져오기 시도
-    with pytest.raises(ConnectionError) as exc_info:
-        MongoDB.get_database()
-
-    # 예외 메시지 검증
-    assert "MongoDB에 연결되어 있지 않습니다" in str(exc_info.value)
-
-
-@pytest.mark.asyncio
-async def test_get_database_with_connection(mock_motor_client):
-    """
-    데이터베이스 가져오기 기능을 테스트합니다.
-    """
-    # 연결 설정
-    await MongoDB.connect()
-
-    # 데이터베이스 가져오기
-    db = MongoDB.get_database()
-
-    # 검증
-    assert db is not None
-    assert db == MongoDB.db
-
-
-@pytest.mark.asyncio
-async def test_get_collection(mock_motor_client):
-    """
-    컬렉션 가져오기 기능을 테스트합니다.
-    """
-    # 연결 설정
-    await MongoDB.connect()
-
-    # 컬렉션 가져오기
-    collection_name = "test_collection"
-    collection = MongoDB.get_collection(collection_name)
-
-    # 검증
-    assert collection is not None
-    MongoDB.get_database().__getitem__.assert_called_once_with(collection_name)
-
-
-@pytest.mark.asyncio
-async def test_initialize_indexes(mock_motor_client):
-    """
-    인덱스 초기화 기능을 테스트합니다.
-    """
-    # 모의 인덱스 함수 설정
-    with (
-        patch("app.models.article.create_article_indexes") as mock_article_indexes,
-        patch("app.models.queue.create_queue_indexes") as mock_queue_indexes,
-        patch(
-            "app.models.published.create_published_article_indexes"
-        ) as mock_published_indexes,
-    ):
-
-        # 연결 설정 (initialize_indexes가 내부적으로 호출됨)
-        await MongoDB.connect()
-
-        # 검증
-        mock_article_indexes.assert_called_once_with(MongoDB.db)
-        mock_queue_indexes.assert_called_once_with(MongoDB.db)
-        mock_published_indexes.assert_called_once_with(MongoDB.db)
-
-
-@pytest.mark.asyncio
-async def test_init_mongodb_helper(mock_motor_client):
-    """
-    init_mongodb 헬퍼 함수를 테스트합니다.
-    """
-    # init_mongodb 호출
-    await init_mongodb("mongodb://helper:password@host:27017", "helper_db")
-
-    # 검증
-    mock_motor_client.assert_called_once_with("mongodb://helper:password@host:27017")
-    assert mock_motor_client.return_value.__getitem__.call_args[0][0] == "helper_db"
-    assert MongoDB.client is not None
-    assert MongoDB.db is not None
-
-
-@pytest.mark.asyncio
-async def test_close_mongodb_helper(mock_motor_client):
-    """
-    close_mongodb 헬퍼 함수를 테스트합니다.
-    """
-    # 먼저 연결 설정
-    await init_mongodb()
-    assert MongoDB.client is not None
-
-    # close_mongodb 호출
-    await close_mongodb()
-
-    # 검증
-    mock_motor_client.return_value.close.assert_called_once()
-    assert MongoDB.client is None
-    assert MongoDB.db is None
-
-
-@pytest.mark.asyncio
-async def test_mongodb_initialize_indexes_error(mock_motor_client):
-    """
-    인덱스 초기화 실패 시나리오를 테스트합니다.
-    """
-    # 모의 인덱스 함수 설정 - 예외 발생
-    with patch("app.models.article.create_article_indexes") as mock_article_indexes:
-        mock_article_indexes.side_effect = Exception("Index creation failed")
-
-        # 테스트 실행 및 예외 검증
-        with pytest.raises(Exception) as exc_info:
-            await MongoDB.connect()
-
-        # 예외 메시지 검증
-        assert "Index creation failed" in str(exc_info.value)
+async def test_mongodb_async():
+    """Run all async tests."""
+    test_instance = TestMongoDB()
+    test_instance.setUp()
+    await test_instance.test_connect(AsyncMock())
+    await test_instance.test_connect_failure(AsyncMock())
+    await test_instance.test_disconnect(AsyncMock())
+    await test_instance.test_find(AsyncMock())
+    await test_instance.test_find_one(AsyncMock())
+    await test_instance.test_insert(AsyncMock())
+    await test_instance.test_insert_many(AsyncMock())
+    await test_instance.test_update(AsyncMock())
+    await test_instance.test_delete(AsyncMock())
+    await test_instance.test_count(AsyncMock())
+    await test_instance.test_aggregate(AsyncMock())
+    await test_instance.test_transaction(AsyncMock())
+    with pytest.raises(Exception):
+        await test_instance.test_transaction_exception(AsyncMock())

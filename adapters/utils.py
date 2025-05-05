@@ -36,12 +36,16 @@ clean_json = clean_json_keys
 get_timestamp = get_current_timestamp
 format_date = format_datetime
 
+# 레거시 호환성을 위한 별칭 정의
+ConfigError = ConfigurationException
+
 # 모든 공개 심볼을 정의합니다
 __all__ = [
     # config 모듈
     "Config",
     "ConfigEnvironment",
     "global_config",
+    "ConfigError",
     # exceptions 모듈
     "AuthenticationException",
     "AuthorizationException",

@@ -672,6 +672,21 @@ files = [
 toml = ["tomli ; python_full_version <= \"3.11.0a6\""]
 
 [[package]]
+name = "discord"
+version = "2.3.2"
+description = "A mirror package for discord.py. Please install that instead."
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "discord-2.3.2-py3-none-any.whl", hash = "sha256:d7959418799dd3b1e896685812d880169c193468b061b3431fa2a4664febd3da"},
+    {file = "discord-2.3.2.tar.gz", hash = "sha256:cc1ee2dbe6df218ca51519af355b97e87309f8230f58c7f34885feb8e8a76145"},
+]
+
+[package.dependencies]
+"discord.py" = ">=2.3.2"
+
+[[package]]
 name = "discord-py"
 version = "2.5.2"
 description = "A Python wrapper for the Discord API"
@@ -1928,4 +1943,4 @@ dev = ["black", "isort", "pre-commit", "pytest", "pytest-asyncio", "pytest-cov"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "9bf0c782463a0540967b4398639b14920ed29ba9c9a98be51d025cc7acbe544f"
+content-hash = "5fe1970018cd2a1c69c9c6063485fc9a101040b74ffbb4a529ec0a0233e5566c"

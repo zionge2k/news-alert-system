@@ -8,6 +8,7 @@ aiohttp를 사용한 비동기 HTTP 요청과 응답 처리에 대한 테스트 
 import asyncio
 import json
 import os
+import sys
 from typing import Any, Dict, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -19,6 +20,13 @@ from aiohttp.client_exceptions import (
     ClientError,
     ServerTimeoutError,
 )
+
+# Add project root to path to support imports
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from infra.clients.http import AioHttpClient, HttpClient
 
 
 class TestHttpClient:
@@ -447,3 +455,313 @@ class TestHttpClientClass:
             mock_session_instance.delete.assert_called_once_with(
                 "https://api.example.com/users/123"
             )
+
+
+class TestHttpClient(unittest.TestCase):
+    """Test case for HTTP client implementation."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.http_client = AioHttpClient(
+            base_url="https://example.com/api",
+            timeout=10,
+            max_retries=2,
+            retry_delay=1,
+            rotate_user_agent=False,
+        )
+
+    def tearDown(self):
+        """Tear down test fixtures."""
+        # Close the client if it was opened
+        if self.http_client._session and not self.http_client._session.closed:
+            # Can't use asyncio.run here as it would create a new event loop
+            pass
+
+    @pytest.mark.asyncio
+    async def test_ensure_session(self):
+        """Test ensuring a session exists."""
+        # Call the method
+        session = await self.http_client._ensure_session()
+
+        # Assertions
+        self.assertIsInstance(session, aiohttp.ClientSession)
+        self.assertEqual(session, self.http_client._session)
+
+        # Call again to test reuse
+        session2 = await self.http_client._ensure_session()
+        self.assertEqual(session, session2)
+
+    @pytest.mark.asyncio
+    async def test_get_headers(self):
+        """Test getting request headers."""
+        # Set default headers
+        self.http_client.default_headers = {"X-Default": "Value"}
+
+        # Call the method
+        headers = await self.http_client._get_headers()
+
+        # Assertions
+        self.assertEqual(headers, {"X-Default": "Value"})
+
+        # With request-specific headers
+        headers = await self.http_client._get_headers({"X-Custom": "Custom"})
+        self.assertEqual(headers, {"X-Default": "Value", "X-Custom": "Custom"})
+
+        # Test override
+        headers = await self.http_client._get_headers({"X-Default": "Override"})
+        self.assertEqual(headers, {"X-Default": "Override"})
+
+    @pytest.mark.asyncio
+    async def test_user_agent_rotation(self):
+        """Test user agent rotation."""
+        # Create client with user agent rotation
+        client = AioHttpClient(rotate_user_agent=True)
+
+        # Get headers twice
+        headers1 = await client._get_headers()
+        headers2 = await client._get_headers()
+
+        # Should have User-Agent in both
+        self.assertIn("User-Agent", headers1)
+        self.assertIn("User-Agent", headers2)
+
+        # Should be different user agents
+        self.assertNotEqual(headers1["User-Agent"], headers2["User-Agent"])
+
+    @pytest.mark.asyncio
+    async def test_request_success(self):
+        """Test a successful request."""
+        # Mock response
+        mock_response = MagicMock()
+        mock_response.json = AsyncMock(return_value={"data": "test"})
+
+        # Mock client session
+        mock_session = MagicMock()
+        mock_session.request = AsyncMock(return_value=mock_response)
+
+        # Mock ensure_session to return our mock session
+        self.http_client._ensure_session = AsyncMock(return_value=mock_session)
+
+        # Call the method
+        result = await self.http_client._request("GET", "/test")
+
+        # Assertions
+        mock_session.request.assert_called_once()
+        self.assertEqual(result, {"data": "test"})
+
+    @pytest.mark.asyncio
+    async def test_request_error_retry(self):
+        """Test request retry on error."""
+        # Mock client session
+        mock_session = MagicMock()
+        mock_session.request = AsyncMock(
+            side_effect=[aiohttp.ClientError("Test error"), MagicMock()]
+        )
+
+        # Mock response for second attempt
+        mock_response = mock_session.request.side_effect[1]
+        mock_response.json = AsyncMock(return_value={"data": "retry success"})
+
+        # Mock ensure_session and sleep
+        self.http_client._ensure_session = AsyncMock(return_value=mock_session)
+
+        # Patch asyncio.sleep to avoid actual delay
+        with patch("asyncio.sleep", AsyncMock()):
+            # Call the method
+            result = await self.http_client._request("GET", "/test")
+
+        # Assertions
+        self.assertEqual(mock_session.request.call_count, 2)
+        self.assertEqual(result, {"data": "retry success"})
+
+    @pytest.mark.asyncio
+    async def test_request_max_retries(self):
+        """Test request max retries."""
+        # Mock client session
+        mock_session = MagicMock()
+        mock_session.request = AsyncMock(
+            side_effect=[
+                aiohttp.ClientError("Error 1"),
+                aiohttp.ClientError("Error 2"),
+                # No third attempt expected
+            ]
+        )
+
+        # Mock ensure_session and sleep
+        self.http_client._ensure_session = AsyncMock(return_value=mock_session)
+
+        # Patch asyncio.sleep to avoid actual delay
+        with patch("asyncio.sleep", AsyncMock()):
+            # Call the method - should raise exception after max retries
+            with self.assertRaises(Exception):
+                await self.http_client._request("GET", "/test")
+
+        # Assertions
+        self.assertEqual(
+            mock_session.request.call_count, 2
+        )  # Should attempt exactly max_retries (2)
+
+    @pytest.mark.asyncio
+    async def test_request_url_handling(self):
+        """Test URL handling in requests."""
+        # Mock response
+        mock_response = MagicMock()
+        mock_response.json = AsyncMock(return_value={"data": "test"})
+
+        # Mock client session
+        mock_session = MagicMock()
+        mock_session.request = AsyncMock(return_value=mock_response)
+
+        # Mock ensure_session to return our mock session
+        self.http_client._ensure_session = AsyncMock(return_value=mock_session)
+
+        # Test relative URL
+        await self.http_client._request("GET", "/relative")
+        mock_session.request.assert_called_with(
+            method="GET",
+            url="https://example.com/api/relative",
+            params=None,
+            data=None,
+            json=None,
+            headers={},
+            timeout=aiohttp.ClientTimeout(total=10),
+            raise_for_status=True,
+        )
+
+        # Reset mock
+        mock_session.request.reset_mock()
+
+        # Test absolute URL
+        await self.http_client._request("GET", "https://other.com/test")
+        mock_session.request.assert_called_with(
+            method="GET",
+            url="https://other.com/test",
+            params=None,
+            data=None,
+            json=None,
+            headers={},
+            timeout=aiohttp.ClientTimeout(total=10),
+            raise_for_status=True,
+        )
+
+    @pytest.mark.asyncio
+    async def test_get(self):
+        """Test GET method."""
+        # Mock _request method
+        self.http_client._request = AsyncMock(return_value={"data": "test"})
+
+        # Call the method
+        result = await self.http_client.get(
+            "/test", params={"param": "value"}, headers={"X-Test": "Header"}
+        )
+
+        # Assertions
+        self.http_client._request.assert_called_once_with(
+            "GET", "/test", params={"param": "value"}, headers={"X-Test": "Header"}
+        )
+        self.assertEqual(result, {"data": "test"})
+
+    @pytest.mark.asyncio
+    async def test_post(self):
+        """Test POST method."""
+        # Mock _request method
+        self.http_client._request = AsyncMock(return_value={"data": "test"})
+
+        # Call the method
+        result = await self.http_client.post(
+            "/test",
+            data={"form": "data"},
+            json_data={"json": "data"},
+            headers={"X-Test": "Header"},
+        )
+
+        # Assertions
+        self.http_client._request.assert_called_once_with(
+            "POST",
+            "/test",
+            data={"form": "data"},
+            json_data={"json": "data"},
+            headers={"X-Test": "Header"},
+        )
+        self.assertEqual(result, {"data": "test"})
+
+    @pytest.mark.asyncio
+    async def test_put(self):
+        """Test PUT method."""
+        # Mock _request method
+        self.http_client._request = AsyncMock(return_value={"data": "test"})
+
+        # Call the method
+        result = await self.http_client.put(
+            "/test",
+            data={"form": "data"},
+            json_data={"json": "data"},
+            headers={"X-Test": "Header"},
+        )
+
+        # Assertions
+        self.http_client._request.assert_called_once_with(
+            "PUT",
+            "/test",
+            data={"form": "data"},
+            json_data={"json": "data"},
+            headers={"X-Test": "Header"},
+        )
+        self.assertEqual(result, {"data": "test"})
+
+    @pytest.mark.asyncio
+    async def test_delete(self):
+        """Test DELETE method."""
+        # Mock _request method
+        self.http_client._request = AsyncMock(return_value={"data": "test"})
+
+        # Call the method
+        result = await self.http_client.delete("/test", headers={"X-Test": "Header"})
+
+        # Assertions
+        self.http_client._request.assert_called_once_with(
+            "DELETE", "/test", headers={"X-Test": "Header"}
+        )
+        self.assertEqual(result, {"data": "test"})
+
+    @pytest.mark.asyncio
+    async def test_close(self):
+        """Test closing the client."""
+        # Mock session
+        mock_session = MagicMock()
+        mock_session.closed = False
+        mock_session.close = AsyncMock()
+
+        # Set the session
+        self.http_client._session = mock_session
+
+        # Call the method
+        await self.http_client.close()
+
+        # Assertions
+        mock_session.close.assert_called_once()
+        self.assertIsNone(self.http_client._session)
+
+    @pytest.mark.asyncio
+    async def test_close_no_session(self):
+        """Test closing the client with no session."""
+        # Ensure no session
+        self.http_client._session = None
+
+        # Call the method - should not raise
+        await self.http_client.close()
+
+    @pytest.mark.asyncio
+    async def test_context_manager(self):
+        """Test using the client as a context manager."""
+        # Mock methods
+        self.http_client.connect = AsyncMock()
+        self.http_client.disconnect = AsyncMock()
+
+        # Use as context manager
+        async with self.http_client:
+            pass
+
+        # Assertions
+        self.http_client.connect.assert_called_once()
+        self.http_client.disconnect.assert_called_once()

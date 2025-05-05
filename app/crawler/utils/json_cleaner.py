@@ -16,6 +16,10 @@ def sanitize_js_style_json(raw: str) -> str:
     Returns:
         str: 정제된 JSON 문자열
     """
-    text = raw.lstrip("\ufeff").strip()
+    # BOM 제거 (모든 BOM을 완전히 제거하도록 정규식으로 처리)
+    text = re.sub(r"^\ufeff", "", raw)
+    # 공백 제거
+    text = text.strip()
+    # 마지막 항목 뒤에 있는 쉼표 제거
     text = re.sub(r",(\s*[\]}])", r"\1", text)
     return text

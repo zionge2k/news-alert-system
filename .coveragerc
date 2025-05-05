@@ -1,0 +1,35 @@
+[run]
+source = app, common, pipelines
+omit =
+    */tests/*
+    */venv/*
+    */.venv/*
+    */docs/*
+    */scripts/*
+    */__pycache__/*
+    */__init__.py
+    */migrations/*
+    */tasks/*
+    */.cursor/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    pass
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    @abstract
+    raise ImportError
+    except ImportError
+    warnings.warn
+    def __str__
+
+[html]
+directory = coverage/html
+
+[xml]
+output = coverage/coverage.xml
+
+[json]
+output = coverage/coverage.json 

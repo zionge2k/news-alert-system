@@ -4,15 +4,20 @@ MongoDB implementation of the Database interface.
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional, Union
 
 import motor.motor_asyncio
 import pymongo
+from dotenv import load_dotenv
 from pymongo import ASCENDING, DESCENDING
 from pymongo.errors import ConnectionFailure, DuplicateKeyError, PyMongoError
 
 from infra.database.base import Database
+
+# Load environment variables
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -366,3 +371,30 @@ class MongoDB(Database):
             raise Exception(f"MongoDB transaction error: {e}")
         finally:
             await session.end_session()
+
+
+# Default values
+DEFAULT_URI = "mongodb://root:1234@localhost:27017"
+DEFAULT_DB_NAME = "news_alert"
+
+
+def create_mongodb_connection(
+    uri: Optional[str] = None, database: Optional[str] = None, **kwargs
+) -> MongoDB:
+    """
+    Create a MongoDB connection with environment variables or defaults.
+
+    Args:
+        uri: MongoDB connection URI. If None, uses MONGODB_URL env var or default.
+        database: Database name. If None, uses MONGODB_DB_NAME env var or default.
+        **kwargs: Additional connection parameters to pass to MongoDB constructor.
+
+    Returns:
+        A MongoDB instance.
+    """
+    # Get connection parameters from environment or defaults
+    mongodb_uri = uri or os.getenv("MONGODB_URL", DEFAULT_URI)
+    mongodb_db = database or os.getenv("MONGODB_DB_NAME", DEFAULT_DB_NAME)
+
+    # Create and return the MongoDB instance
+    return MongoDB(uri=mongodb_uri, database=mongodb_db, **kwargs)

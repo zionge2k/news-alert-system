@@ -31,17 +31,46 @@ jobs:
         pip install poetry
         poetry config virtualenvs.create false
         poetry install --no-interaction
-        pip install pytest pytest-cov
+        pip install pytest pytest-cov pyyaml
     
     - name: 테스트 환경 설정
       run: |
         # 현재 디렉토리를 PYTHONPATH에 추가
         echo "PYTHONPATH=$PYTHONPATH:$(pwd)" >> $GITHUB_ENV
-        # 디렉토리 구조 확인
-        find . -type d -not -path "*/\.*" | sort
+        
+        # 패키지 구조 확인
+        echo "프로젝트 디렉토리 구조:"
+        find . -type d -not -path "*/\.*" -not -path "*/venv*" -not -path "*/__pycache__*" | sort
+        
+        # 패키지 설치 여부 확인
+        echo "설치된 패키지:"
+        pip list
+        
+        # infra 패키지 구조 확인
+        echo "infra 패키지 구조:"
+        find ./infra -type f -name "*.py" 2>/dev/null || echo "infra 디렉토리가 없습니다"
+        
+        # Python 경로에 필요한 디렉토리 추가를 위한 setup.py 생성
+        if [ ! -f setup.py ] || ! grep -q "setup(" setup.py; then
+          echo "setup.py 생성 또는 수정"
+          echo 'from setuptools import setup, find_packages' > setup.py
+          echo '' >> setup.py
+          echo 'setup(' >> setup.py
+          echo '    name="news-alert-system",' >> setup.py
+          echo '    version="0.1.0",' >> setup.py
+          echo '    packages=find_packages(),' >> setup.py
+          echo ')' >> setup.py
+        fi
+        
+        # 개발 모드로 패키지 설치
+        pip install -e .
     
     - name: 테스트 및 커버리지 측정
       run: |
+        # Python 경로 확인
+        python -c "import sys; print('Python 경로:', sys.path)"
+        
+        # 테스트 실행
         python -m pytest --cov=. --cov-config=.coveragerc --cov-report=xml --cov-report=term-missing:skip-covered
     
     - name: Codecov에 업로드

@@ -1,5 +1,5 @@
-"""MongoDB implementations of repository interfaces."""
+"""MongoDB repository implementation package."""
 
-from infra.database.repository.mongodb.article import MongoArticleRepository
+from infra.database.repository.mongodb.base import MongoRepository
 
-__all__ = ["MongoArticleRepository"]
+__all__ = ["MongoRepository"]

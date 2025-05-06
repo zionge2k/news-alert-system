@@ -5,6 +5,8 @@ from infra.database.mongodb import MongoDB, create_mongodb_connection
 from infra.database.repository import (
     ArticleModel,
     ArticleRepository,
+    MongoRepository,
+    Repository,
     create_article_repository,
 )
 
@@ -12,6 +14,8 @@ __all__ = [
     "Database",
     "MongoDB",
     "create_mongodb_connection",
+    "Repository",
+    "MongoRepository",
     "ArticleModel",
     "ArticleRepository",
     "create_article_repository",

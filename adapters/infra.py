@@ -12,11 +12,15 @@ from typing import Any, Dict, List, Optional, Union
 
 # 레거시 DB 모듈
 import db.mongodb as legacy_mongodb
-from infra.clients.http import AioHttpClient, HttpClient
-from infra.clients.messaging import DiscordClient, Message
-
-# 새 인프라 모듈
-from infra.database import MongoDB, create_mongodb_connection
+import infra
+from infra import (
+    AioHttpClient,
+    DiscordClient,
+    HttpClient,
+    Message,
+    MongoDB,
+    create_mongodb_connection,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -202,59 +206,36 @@ async def init_mongodb(
     mongodb_url: Optional[str] = None, db_name: Optional[str] = None
 ) -> None:
     """
-    기존 db.mongodb.init_mongodb() 함수와 호환되는 레거시 함수입니다.
+    MongoDB 연결을 초기화합니다. 기존 db.mongodb.init_mongodb() 함수와 호환됩니다.
 
     Args:
-        mongodb_url: MongoDB 연결 URL
-        db_name: 데이터베이스 이름
+        mongodb_url: MongoDB 연결 URL (기본값: 환경 변수에서 가져옴)
+        db_name: 사용할 데이터베이스 이름 (기본값: 환경 변수에서 가져옴)
     """
-    warnings.warn(
-        "db.mongodb.init_mongodb()는 더 이상 사용되지 않습니다. "
-        "대신 infra.database.create_mongodb_connection()을 사용하세요.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
     adapter = MongoDBAdapter.get_instance()
     await adapter.connect(mongodb_url, db_name)
-    logger.info("MongoDB가 초기화되었습니다.")
 
 
 async def close_mongodb() -> None:
     """
-    기존 db.mongodb.close_mongodb() 함수와 호환되는 레거시 함수입니다.
+    MongoDB 연결을 종료합니다. 기존 db.mongodb.close_mongodb() 함수와 호환됩니다.
     """
-    warnings.warn(
-        "db.mongodb.close_mongodb()는 더 이상 사용되지 않습니다.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
     adapter = MongoDBAdapter.get_instance()
     await adapter.close()
-    logger.info("MongoDB 연결이 종료되었습니다.")
 
 
-# 사용시 경고를 표시하는 데코레이터
 def deprecated_import_warning(func):
-    """레거시 함수가 사용될 때 경고 메시지를 표시하는 데코레이터"""
+    """
+    더 이상 사용되지 않는 임포트에 대한 경고를 표시하는 데코레이터.
+    """
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         warnings.warn(
-            f"{func.__name__}은(는) 더 이상 사용되지 않습니다. "
-            "대신 새로운 인프라 계층을 사용하세요.",
+            f"{func.__name__}은(는) 더 이상 사용되지 않습니다. 새로운 인프라 모듈을 직접 사용하세요.",
             DeprecationWarning,
             stacklevel=2,
         )
         return func(*args, **kwargs)
 
     return wrapper
-
-
-# 레거시 함수에 경고 데코레이터 적용
-init_mongodb = deprecated_import_warning(init_mongodb)
-close_mongodb = deprecated_import_warning(close_mongodb)
-
-# 레거시 코드에서 사용할 수 있도록 몽키패치 적용
-legacy_mongodb.MongoDB = MongoDBAdapter
-legacy_mongodb.init_mongodb = init_mongodb
-legacy_mongodb.close_mongodb = close_mongodb

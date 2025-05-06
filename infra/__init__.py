@@ -1,34 +1,26 @@
 """
-Infrastructure layer for external services and data access.
+인프라 계층 - 데이터베이스, 외부 API 클라이언트 등 인프라 관련 모듈.
 
-This module provides abstractions and implementations for database access,
-HTTP clients, messaging clients, and more.
+이 패키지는 애플리케이션의 인프라 요소(데이터베이스, HTTP 클라이언트 등)에 대한
+추상화 인터페이스와 구체적인 구현을 제공합니다.
 """
 
 from infra.clients.http import AioHttpClient, HttpClient
 from infra.clients.messaging import DiscordClient, Message, MessagingClient
 from infra.database import (
-    ArticleModel,
-    ArticleRepository,
-    Database,
     MongoDB,
-    create_article_repository,
+    MongoRepository,
+    Repository,
     create_mongodb_connection,
 )
 
 __all__ = [
-    # Database
-    "Database",
     "MongoDB",
     "create_mongodb_connection",
-    # Repository
-    "ArticleModel",
-    "ArticleRepository",
-    "create_article_repository",
-    # HTTP Client
+    "Repository",
+    "MongoRepository",
     "HttpClient",
     "AioHttpClient",
-    # Messaging Client
     "MessagingClient",
     "DiscordClient",
     "Message",

@@ -3,54 +3,74 @@
 이 파일은 pytest에 의해 자동으로 발견되며, 모든 테스트에서 공유됩니다.
 """
 
-# 가장 먼저 프로젝트 루트를 Python 경로에 추가
-import os
-import sys
-
-# 프로젝트 루트를 Python path에 추가
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-    print(f"Added {project_root} to Python path")
-
-# 필요한 모듈 가져오기
 import asyncio
 import json
+
+# 시스템 모듈 임포트
+import os
+import sys
 from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
+# 프로젝트 루트 경로를 명확하게 설정
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+print(f"프로젝트 루트 경로: {PROJECT_ROOT}")
+
+# Python 경로에 프로젝트 루트 추가
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+    print(f"Python 경로에 {PROJECT_ROOT} 추가됨")
+
+# 환경 변수에 PYTHONPATH 설정
+os.environ["PYTHONPATH"] = PROJECT_ROOT
+
+# 현재 경로 출력
+print(f"conftest.py의 현재 디렉토리: {os.getcwd()}")
+print(f"conftest.py의 Python 경로: {sys.path}")
+
+# pytest 임포트
 import pytest
 
-# tests.helpers 모듈 임포트
+# 테스트 헬퍼 임포트
 from tests.helpers import dummy_article_dto, load_test_data
 
 
-# 비동기 테스트를 위한 설정
+# 비동기 테스트를 위한 이벤트 루프 픽스처
 @pytest.fixture
 def event_loop():
-    """전역 이벤트 루프 픽스처를 제공합니다."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
+    """비동기 테스트를 위한 이벤트 루프 설정"""
+    policy = asyncio.get_event_loop_policy()
+    loop = policy.new_event_loop()
     yield loop
     loop.close()
 
 
-# MongoDB 모킹을 위한 픽스처
+# MongoDB 픽스처
 @pytest.fixture
-def mock_mongodb():
-    """MongoDB 클라이언트를 모킹하는 픽스처입니다."""
-    with patch("motor.motor_asyncio.AsyncIOMotorClient") as mock_client:
-        mock_db = MagicMock()
-        mock_collection = MagicMock()
+async def mongodb():
+    """MongoDB 연결 픽스처"""
+    from infra.database.mongodb import MongoDB
 
-        # 모킹된 메서드 설정
-        mock_collection.insert_one.return_value.inserted_id = "test_id"
-        mock_collection.find_one.return_value = {"_id": "test_id"}
+    mongodb = MongoDB(uri="mongodb://localhost:27017", database="test_db")
+    await mongodb.connect()
+    yield mongodb
+    await mongodb.disconnect()
 
-        # 속성 체이닝을 위한 설정
-        mock_client.return_value.__getitem__.return_value = mock_db
-        mock_db.__getitem__.return_value = mock_collection
 
-        yield mock_client
+# 데이터베이스 모의 픽스처
+@pytest.fixture
+def mock_db():
+    """데이터베이스 모의 픽스처"""
+    mock = MagicMock()
+    return mock
+
+
+# 비동기 클라이언트 모의 픽스처
+@pytest.fixture
+def mock_async_client():
+    """비동기 클라이언트 모의 픽스처"""
+    mock = AsyncMock()
+    return mock
 
 
 # 향상된 MongoDB 컬렉션 모킹 픽스처

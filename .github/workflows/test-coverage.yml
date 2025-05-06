@@ -31,10 +31,11 @@ jobs:
         pip install poetry
         poetry config virtualenvs.create false
         poetry install --no-interaction
+        pip install pytest pytest-cov
     
     - name: 테스트 및 커버리지 측정
       run: |
-        pytest --cov=. --cov-config=.coveragerc --cov-report=xml --cov-report=term-missing:skip-covered
+        python -m pytest --cov=. --cov-config=.coveragerc --cov-report=xml --cov-report=term-missing:skip-covered
     
     - name: Codecov에 업로드
       uses: codecov/codecov-action@v3

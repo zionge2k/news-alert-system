@@ -15,7 +15,7 @@ from app.models.article import ArticleModel
 from app.models.queue import QueueItem, QueueStatus
 from app.storage.queue.mongodb_queue import mongodb_queue
 from common.utils.logger import get_logger
-from db.mongodb import MongoDB
+from infra.database.mongodb import MongoDB, global_mongodb_instance
 
 logger = get_logger(__name__)
 
@@ -43,6 +43,7 @@ class QueueService:
         category: Optional[str] = None,
         limit: int = 100,
         hours: int = 12,
+        mongodb_instance: Optional[MongoDB] = None,
     ) -> int:
         """
         MongoDB에 저장된 기사를 큐에 추가합니다.
@@ -52,13 +53,23 @@ class QueueService:
             category: 필터링할 카테고리 (None이면 모든 카테고리)
             limit: 최대 추가할 기사 수
             hours: N시간 이내 수집된 기사만 추가
+            mongodb_instance: MongoDB 인스턴스 (None이면 전역 인스턴스 사용)
 
         Returns:
             int: 성공적으로 추가된 기사 수
         """
         try:
-            db = MongoDB.get_database()
-            collection = db[ArticleModel.collection_name]
+            # MongoDB 인스턴스가 없으면 전역 인스턴스 사용
+            mongodb = (
+                mongodb_instance
+                if mongodb_instance is not None
+                else global_mongodb_instance
+            )
+
+            if mongodb is None or not hasattr(mongodb, "_db") or mongodb._db is None:
+                raise Exception("MongoDB 연결이 설정되지 않았습니다.")
+
+            collection = mongodb._db[ArticleModel.collection_name]
 
             # 쿼리 조건 구성
             query = {}

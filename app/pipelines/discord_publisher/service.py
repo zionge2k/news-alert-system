@@ -19,6 +19,9 @@ from app.storage.queue.mongodb_queue import mongodb_queue
 from app.storage.queue.services import QueueService
 from common.utils.logger import get_logger
 
+# 직접 서비스 계층 임포트
+from services.notifier import NotifierFactory
+
 logger = get_logger(__name__)
 
 
@@ -44,6 +47,17 @@ class DiscordPublisherService:
         self.client = None
         self.running = False
         self.publish_task = None
+
+        # 서비스 어댑터 대신 직접 Discord 알림 서비스 생성
+        if self.settings.WEBHOOK_URL:
+            self.discord_notifier = NotifierFactory.create(
+                "discord", webhook_url=self.settings.WEBHOOK_URL
+            )
+        else:
+            self.discord_notifier = None
+            logger.warning(
+                "Discord webhook URL이 설정되지 않아 webhook 알림 기능이 비활성화됩니다."
+            )
 
     async def initialize(self):
         """
@@ -198,43 +212,109 @@ class DiscordPublisherService:
         except Exception as e:
             # 예외 발생 시 실패 상태로 변경
             error_message = f"기사 발행 중 오류 발생: {str(e)}"
-            logger.error(error_message)
+            await self.queue_service.mark_article_failed(
+                article.unique_id, error_message
+            )
+            logger.error(f"{error_message}: {article.title}")
 
-            try:
+    async def publish_via_webhook(self, article: QueueItem) -> bool:
+        """
+        Discord webhook을 통해 기사를 발행합니다.
+        직접 Discord 알림 서비스를 사용합니다.
+
+        Args:
+            article: 발행할 QueueItem
+
+        Returns:
+            bool: 발행 성공 여부
+        """
+        # Discord 알림 서비스 확인
+        if not self.discord_notifier:
+            logger.error("Discord 알림 서비스가 설정되지 않았습니다.")
+            return False
+
+        try:
+            # QueueItem을 알림 서비스가 기대하는 형식으로 변환
+            news_data = {
+                "title": article.title,
+                "content": article.content,
+                "source": article.source,
+                "url": article.url,
+                "published_at": (
+                    article.published_at.isoformat() if article.published_at else None
+                ),
+                "category": article.category,
+            }
+
+            # 알림 서비스를 통해 알림 전송
+            message = self.discord_notifier.format_message(news_data)
+            success = await self.discord_notifier.send(message)
+
+            if success:
+                # 성공 시 완료 상태로 변경
+                await self.queue_service.mark_article_published(article.unique_id)
+
+                # 발행 이력 기록
+                await published_article_service.mark_as_published(
+                    unique_id=article.unique_id,
+                    platform="discord",
+                    channel_id="webhook",  # webhook을 통한 발행은 채널 ID 대신 "webhook" 표시
+                )
+
+                logger.info(f"webhook을 통한 기사 발행 성공: {article.title}")
+                return True
+            else:
+                # 실패 시 실패 상태로 변경
                 await self.queue_service.mark_article_failed(
-                    article.unique_id, error_message
+                    article.unique_id, "Discord webhook 메시지 전송 실패"
                 )
+                logger.error(f"webhook을 통한 기사 발행 실패: {article.title}")
+                return False
 
-                # 오류 로깅
-                error_embed = ArticleFormatter.create_error_embed(
-                    error_message, article
-                )
-                await self.client.send_error_message(error_embed)
-
-            except Exception as inner_e:
-                logger.error(f"오류 처리 중 추가 예외 발생: {str(inner_e)}")
+        except Exception as e:
+            # 예외 발생 시 실패 상태로 변경
+            error_message = f"webhook을 통한 기사 발행 중 오류 발생: {str(e)}"
+            await self.queue_service.mark_article_failed(
+                article.unique_id, error_message
+            )
+            logger.error(f"{error_message}: {article.title}")
+            return False
 
     async def retry_failed_articles(self):
         """
         실패한 기사를 재시도합니다.
+
+        일정 시간이 지난 후 실패한 기사를 다시 발행 시도합니다.
         """
         try:
-            count = await self.queue_service.retry_failed_articles(
-                max_retries=self.settings.MAX_RETRIES
+            # 실패한 기사 가져오기
+            failed_articles = await self.queue_service.get_failed_articles(
+                max_retries=self.settings.MAX_RETRIES,
+                min_age_seconds=self.settings.RETRY_INTERVAL,
             )
 
-            if count > 0:
-                logger.info(f"{count}개 실패 기사가 재시도 큐에 추가되었습니다.")
+            if not failed_articles:
+                logger.debug("재시도할 실패한 기사가 없습니다.")
+                return
 
-            return count
+            logger.info(f"{len(failed_articles)}개 실패한 기사 재시도 시작")
+
+            # 각 기사 재시도
+            for article in failed_articles:
+                # 재시도 카운트 증가
+                await self.queue_service.increment_retry_count(article.unique_id)
+
+                # 발행 시도
+                await self._publish_article(article)
+
+            logger.info(f"{len(failed_articles)}개 실패한 기사 재시도 완료")
 
         except Exception as e:
-            logger.error(f"실패 기사 재시도 중 오류 발생: {str(e)}")
-            return 0
+            logger.error(f"실패한 기사 재시도 중 오류 발생: {str(e)}")
 
     async def publish_single_article(self, article_id: str) -> bool:
         """
-        특정 기사 ID를 즉시 발행합니다.
+        특정 ID의 기사를 Discord에 발행합니다.
 
         Args:
             article_id: 발행할 기사의 고유 ID
@@ -243,20 +323,24 @@ class DiscordPublisherService:
             bool: 발행 성공 여부
         """
         try:
-            # MongoDB에서 해당 기사 조회
-            db = mongodb_queue.collection
-            doc = await db.find_one({"unique_id": article_id})
+            # 기사 가져오기
+            article = await self.queue_service.get_article_by_id(article_id)
 
-            if not doc:
-                logger.error(f"기사 ID {article_id}를 찾을 수 없습니다.")
+            if not article:
+                logger.error(f"기사를 찾을 수 없음: {article_id}")
                 return False
 
-            # QueueItem으로 변환
-            article = QueueItem.from_document(doc)
-
-            # 발행 처리
+            # 발행 시도
             await self._publish_article(article)
-            return True
+
+            # 발행 후 상태 확인
+            updated_article = await self.queue_service.get_article_by_id(article_id)
+            if updated_article and updated_article.status == QueueStatus.PUBLISHED:
+                logger.info(f"단일 기사 발행 성공: {article_id}")
+                return True
+            else:
+                logger.error(f"단일 기사 발행 실패: {article_id}")
+                return False
 
         except Exception as e:
             logger.error(f"단일 기사 발행 중 오류 발생: {str(e)}")
@@ -264,10 +348,10 @@ class DiscordPublisherService:
 
     async def get_queue_status(self) -> dict:
         """
-        현재 큐 상태를 조회합니다.
+        큐 상태를 가져옵니다.
 
         Returns:
-            dict: 상태별 기사 수
+            dict: 상태별 기사 수 정보
         """
         try:
             return await self.queue_service.get_queue_status()
@@ -276,26 +360,32 @@ class DiscordPublisherService:
             return {}
 
 
-# 싱글톤 인스턴스
+# 전역 서비스 인스턴스 생성
 discord_publisher_service = DiscordPublisherService()
 
 
 async def start_discord_publisher():
     """
-    Discord 발행 서비스를 시작하는 유틸리티 함수
+    Discord 발행 서비스를 시작합니다.
 
-    애플리케이션 시작 시 호출됩니다.
+    이 함수는 메인 애플리케이션에서 호출되어 서비스를 초기화하고 시작합니다.
     """
-    global discord_publisher_service
-
     try:
-        # 서비스 초기화 및 시작
-        await discord_publisher_service.initialize()
-        await discord_publisher_service.start()
+        # 서비스 인스턴스 생성
+        publisher = DiscordPublisherService()
 
-        logger.info("Discord 발행 서비스가 실행 중입니다.")
-        return True
+        # 서비스 초기화
+        success = await publisher.initialize()
+        if not success:
+            logger.error("Discord 발행 서비스 초기화 실패")
+            return None
+
+        # 서비스 시작
+        await publisher.start()
+        logger.info("Discord 발행 서비스가 시작되었습니다.")
+
+        return publisher
 
     except Exception as e:
         logger.error(f"Discord 발행 서비스 시작 중 오류 발생: {str(e)}")
-        return False
+        return None

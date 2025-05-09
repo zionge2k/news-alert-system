@@ -73,3 +73,11 @@ def create_ytn_headers(for_post: bool = False) -> Dict[str, str]:
         accept="application/json, text/javascript, */*; q=0.01",  # YTN은 JSON/JSONP 응답 사용
         content_type=content_type,
     )
+
+
+def create_sbs_headers() -> Dict[str, str]:
+    """SBS 뉴스 API 요청에 사용할 헤더를 생성합니다."""
+    return create_news_headers(
+        referer="https://news.sbs.co.kr/",
+        accept="application/json, text/javascript, */*; q=0.01",
+    )

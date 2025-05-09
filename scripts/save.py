@@ -23,25 +23,35 @@ from app.schemas.article import ArticleDTO
 
 # 커스텀 로거
 from common.utils.logger import get_logger
-from db.repositories.article_repository import article_repository
+from infra.database.mongodb import MongoDB
+from infra.database.repository.article import ArticleRepository
+
+# 인프라 계층 저장소 임포트
+from infra.database.repository.factory import create_article_repository
 
 # 로거 가져오기
 logger = get_logger(__name__)
 
 
-async def save_to_database(articles: List[ArticleDTO]) -> int:
+async def save_to_database(
+    articles: List[ArticleDTO], mongodb_instance: Optional[MongoDB] = None
+) -> int:
     """
     크롤링한 기사를 MongoDB에 저장합니다.
     unique_id(platform + article_id) 기반으로 중복을 확인하여 이미 존재하는 기사는 건너뜁니다.
 
     Args:
         articles: 저장할 ArticleDTO 객체 목록
+        mongodb_instance: MongoDB 인스턴스 (None이면 전역 인스턴스 사용)
 
     Returns:
         새로 저장된 기사 수
     """
     logger.info("데이터베이스 저장 작업을 시작합니다...")
     start_time = datetime.now()
+
+    # 저장소 인스턴스 생성 - 전역 MongoDB 인스턴스 사용
+    article_repository = create_article_repository(mongodb_instance)
 
     new_count: int = 0
     dup_count: int = 0
@@ -77,7 +87,7 @@ async def save_to_database(articles: List[ArticleDTO]) -> int:
                 article_model: ArticleModel = ArticleModel.from_article_dto(article_dto)
 
                 # DB 저장
-                await article_repository.save_article(article_model)
+                await article_repository.save(article_model)
                 new_count += 1
             else:
                 dup_count += 1

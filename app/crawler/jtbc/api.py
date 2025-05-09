@@ -9,6 +9,9 @@ from app.schemas.api_models import BaseApiModel
 from app.schemas.article import ArticleDTO, ArticleMetadata
 from common.utils.logger import get_logger
 
+# 직접 서비스 계층 임포트
+from services.crawler import default_registry as crawler_registry
+
 logger = get_logger(__name__)
 
 
@@ -63,6 +66,15 @@ class JTBCNewsApiCrawler(BaseNewsCrawler):
     """
 
     BASE_URL = "https://news-api.jtbc.co.kr/v1/get/contents/section/list/articles"
+
+    def __init__(self):
+        """
+        JTBC 뉴스 크롤러 초기화
+        """
+        # 서비스 어댑터 관련 코드 제거
+        pass
+
+    # set_service_adapter 메서드 제거
 
     async def fetch_articles_by_category(
         self, category_code: int
@@ -200,10 +212,87 @@ class JTBCNewsApiCrawler(BaseNewsCrawler):
         """
         all_articles: list[ArticleDTO[JtbcArticleMetadata]] = []
 
-        # CATEGORY_MAP의 모든 카테고리에 대해 기사 수집
-        for category_code in CATEGORY_MAP:
-            category_articles = await self.fetch_articles_by_category(category_code)
-            all_articles.extend(category_articles)
+        # 주요 카테고리만 수집 (정치, 경제, 사회)
+        main_categories = [10, 20, 30]
 
-        logger.info(f"[JTBC] 전체 {len(all_articles)}개의 기사 수집 완료")
+        for category_code in main_categories:
+            articles = await self.fetch_articles_by_category(category_code)
+            all_articles.extend(articles)
+
         return all_articles
+
+    async def fetch_via_direct_service(self) -> List[Dict[str, Any]]:
+        """
+        서비스 계층을 직접 사용하여 JTBC 뉴스 기사 수집
+
+        Returns:
+            List[Dict[str, Any]]: 수집된 기사 데이터 목록
+        """
+        try:
+            # 서비스 계층에서 JTBC 크롤러 가져오기
+            crawler = crawler_registry.get("JTBC")
+            if not crawler:
+                logger.error("JTBC 크롤러를 찾을 수 없습니다.")
+                return []
+
+            # 크롤러를 통해 뉴스 수집
+            news = await crawler.crawl()
+
+            if isinstance(news, list):
+                return news
+            elif isinstance(news, dict):
+                return [news]
+            else:
+                return []
+
+        except Exception as e:
+            logger.error(f"JTBC 뉴스 크롤링 실패: {e}")
+            return []
+
+    async def convert_adapter_data_to_dto(
+        self, adapter_data: Dict[str, Any]
+    ) -> Optional[ArticleDTO[JtbcArticleMetadata]]:
+        """
+        서비스 계층에서 받은 데이터를 ArticleDTO로 변환
+
+        Args:
+            adapter_data: 서비스 계층에서 받은 데이터
+
+        Returns:
+            Optional[ArticleDTO]: 변환된 ArticleDTO 객체
+        """
+        try:
+            # 필수 필드 확인
+            title = adapter_data.get("title")
+            article_id = adapter_data.get("id")
+
+            if not title or not article_id:
+                logger.warning("[JTBC] 변환 실패: 필수 필드 누락")
+                return None
+
+            # 메타데이터 생성
+            metadata = JtbcArticleMetadata(
+                platform="JTBC",
+                category=adapter_data.get("category", "기타"),
+                article_id=article_id,
+                published_at=adapter_data.get("published_at") or datetime.now(),
+                collected_at=datetime.now(),
+                updated_at=datetime.now(),
+                has_video=adapter_data.get("has_video", False),
+                video_id=adapter_data.get("video_id"),
+            )
+
+            # ArticleDTO 생성
+            return ArticleDTO[JtbcArticleMetadata](
+                title=title,
+                url=adapter_data.get(
+                    "url", f"https://news.jtbc.co.kr/article/{article_id}"
+                ),
+                content=adapter_data.get("content", ""),
+                author=adapter_data.get("author", ""),
+                metadata=metadata,
+            )
+
+        except Exception as e:
+            logger.error(f"[JTBC] DTO 변환 중 오류: {str(e)}")
+            return None

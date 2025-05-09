@@ -65,6 +65,20 @@ class MongoDB(Database):
         self._client = None
         self._db = None
 
+    def __bool__(self):
+        """
+        Boolean 반환 메서드.
+        MongoDB 객체가 불리언 평가를 할 수 있도록 합니다.
+        이 메서드가 있으면 'if mongodb:' 같은 구문 사용 가능.
+
+        Returns:
+            bool: self._db가 None이 아닌 경우 True, 아니면 False
+        """
+        return self._db is not None
+
+    # Python 2 호환성을 위한 메서드 (Python 3에서는 __bool__로 대체됨)
+    __nonzero__ = __bool__
+
     async def connect(self) -> None:
         """
         Connect to MongoDB.
@@ -398,3 +412,35 @@ def create_mongodb_connection(
 
     # Create and return the MongoDB instance
     return MongoDB(uri=mongodb_uri, database=mongodb_db, **kwargs)
+
+
+# 전역 MongoDB 인스턴스
+global_mongodb_instance = None
+
+
+async def init_mongodb(mongodb_url=None, db_name=None):
+    """MongoDB 연결을 초기화합니다."""
+    global global_mongodb_instance
+
+    # 환경변수나 명령행 인자에서 연결 정보 가져오기
+    uri = mongodb_url or os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
+    database = db_name or os.environ.get("MONGODB_DATABASE", "news_system")
+
+    try:
+        # MongoDB 인스턴스 생성 및 연결
+        global_mongodb_instance = create_mongodb_connection(uri=uri, database=database)
+        await global_mongodb_instance.connect()
+        logger.info(f"MongoDB 연결 성공: {database}")
+        return True
+    except Exception as e:
+        logger.error(f"MongoDB 연결 실패: {str(e)}")
+        return False
+
+
+async def close_mongodb():
+    """MongoDB 연결을 종료합니다."""
+    global global_mongodb_instance
+
+    if global_mongodb_instance:
+        await global_mongodb_instance.disconnect()
+        logger.info("MongoDB 연결 종료")

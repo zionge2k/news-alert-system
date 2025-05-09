@@ -34,8 +34,12 @@ from app.storage.queue.services import queue_service
 # 로깅
 from common.utils.logger import get_logger
 
-# MongoDB 연결 관리
-from db.mongodb import close_mongodb, init_mongodb
+# MongoDB 연결 관리 - 경로 수정 및 전역 인스턴스 임포트
+from infra.database.mongodb import (
+    MongoDB,
+    create_mongodb_connection,
+    global_mongodb_instance,
+)
 
 # 크롤링/저장 모듈 임포트
 from scripts.crawl import crawl_all_sources
@@ -43,6 +47,39 @@ from scripts.save import save_to_database
 
 # 로거 설정
 logger = get_logger(__name__)
+
+
+async def init_mongodb(mongodb_url=None, db_name=None):
+    """MongoDB 연결을 초기화합니다."""
+    global global_mongodb_instance
+
+    # 환경변수나 명령행 인자에서 연결 정보 가져오기
+    uri = mongodb_url or os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
+    database = db_name or os.environ.get("MONGODB_DATABASE", "news_system")
+
+    try:
+        # MongoDB 인스턴스 생성 및 연결
+        mongodb = create_mongodb_connection(uri=uri, database=database)
+        await mongodb.connect()
+
+        # 전역 인스턴스에 할당
+        global_mongodb_instance = mongodb
+
+        logger.info(f"MongoDB 연결 성공: {database}")
+        return True
+    except Exception as e:
+        logger.error(f"MongoDB 연결 실패: {str(e)}")
+        return False
+
+
+async def close_mongodb():
+    """MongoDB 연결을 종료합니다."""
+    global global_mongodb_instance
+
+    if global_mongodb_instance:
+        await global_mongodb_instance.disconnect()
+        global_mongodb_instance = None
+        logger.info("MongoDB 연결 종료")
 
 
 def parse_arguments():
@@ -113,7 +150,7 @@ async def run_crawling_pipeline():
 
         # 2. DB 저장
         logger.info("2단계: 기사 데이터베이스 저장 시작")
-        saved_count = await save_to_database(articles)
+        saved_count = await save_to_database(articles, global_mongodb_instance)
         logger.info(f"{saved_count}개 기사가 성공적으로 저장되었습니다")
 
         return saved_count
@@ -133,7 +170,11 @@ async def add_to_queue(platform, category, limit, hours):
 
     try:
         added_count = await queue_service.add_articles_from_db(
-            platform=platform, category=category, limit=limit, hours=hours
+            platform=platform,
+            category=category,
+            limit=limit,
+            hours=hours,
+            mongodb_instance=global_mongodb_instance,
         )
 
         logger.info(f"{added_count}개 기사가 큐에 추가되었습니다")

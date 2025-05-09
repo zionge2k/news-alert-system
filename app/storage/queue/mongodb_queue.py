@@ -15,7 +15,7 @@ from pymongo.errors import DuplicateKeyError
 from app.models.queue import QueueItem, QueueStatus, get_queue_collection_name
 from app.storage.queue.interfaces import QueueInterface
 from common.utils.logger import get_logger
-from db.mongodb import MongoDB
+from infra.database.mongodb import MongoDB, global_mongodb_instance
 
 logger = get_logger(__name__)
 
@@ -28,19 +28,33 @@ class MongoDBQueue(QueueInterface):
     중복 방지와 상태 관리를 처리합니다.
     """
 
-    def __init__(self):
+    def __init__(self, mongodb_instance: Optional[MongoDB] = None):
         """
         MongoDB 큐 초기화
+
+        Args:
+            mongodb_instance: MongoDB 인스턴스 (None이면 전역 인스턴스 사용)
         """
         self.collection_name = get_queue_collection_name()
+        self.mongodb_instance = mongodb_instance
 
     @property
     def collection(self):
         """
         MongoDB 컬렉션 객체 반환
         """
-        db = MongoDB.get_database()
-        return db[self.collection_name]
+        # MongoDB 인스턴스가 없으면 전역 인스턴스 사용
+        mongodb = (
+            self.mongodb_instance
+            if self.mongodb_instance is not None
+            else global_mongodb_instance
+        )
+
+        if mongodb is None or not hasattr(mongodb, "_db") or mongodb._db is None:
+            raise Exception(
+                "MongoDB에 연결되어 있지 않습니다. connect() 메서드를 먼저 호출하세요."
+            )
+        return mongodb._db[self.collection_name]
 
     async def enqueue(self, item: QueueItem) -> bool:
         """
@@ -319,5 +333,5 @@ class MongoDBQueue(QueueInterface):
             return 0
 
 
-# 싱글톤 인스턴스
+# 기본 MongoDB 큐 인스턴스 생성
 mongodb_queue = MongoDBQueue()

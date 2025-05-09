@@ -140,31 +140,38 @@ await discord.send_message(message)
 
 ## 레거시 코드와의 호환성
 
-기존 코드가 새로운 인프라 계층으로 마이그레이션하는 동안 어댑터를 통해 호환성을 유지할 수 있습니다:
+이전에는 어댑터 계층을 통해 인프라 계층과 통신했지만, 이제는 직접 인프라 계층을 사용합니다:
 
 ```python
-# 레거시 방식
-from adapters.infra import MongoDBAdapter, init_mongodb
+# 이전 방식 (더 이상 사용하지 않음)
+# from adapters.infra import MongoDBAdapter, init_mongodb
+# await init_mongodb()
+# mongodb = MongoDBAdapter.get_instance()
+# db = mongodb.get_database()
 
-# 기존 방식으로 MongoDB 초기화
-await init_mongodb()
+# 새로운 방식
+from infra.database.mongodb import create_mongodb_connection, init_mongodb
 
-# 어댑터 인스턴스 가져오기
-mongodb = MongoDBAdapter.get_instance()
-db = mongodb.get_database()
+# MongoDB 초기화
+mongodb = create_mongodb_connection()
+await mongodb.connect()
 
-# HTTP 클라이언트 어댑터 사용
-from adapters.infra import HTTPClientAdapter
+# HTTP 클라이언트 사용 (이전 어댑터 방식 대신)
+# from adapters.infra import HTTPClientAdapter
+# http_client = HTTPClientAdapter(base_url="https://api.example.com")
 
-http_client = HTTPClientAdapter(base_url="https://api.example.com")
+# 새로운 방식
+from infra.clients.http import AioHttpClient
+
+http_client = AioHttpClient(base_url="https://api.example.com")
 response = await http_client.get("/news/1")
 ```
 
 ## 권장 사항
 
-- 새로운 코드는 직접 `infra` 패키지를 사용하는 것을 권장합니다.
-- 레거시 코드는 점진적으로 `adapters` 패키지에서 직접 `infra` 패키지로 마이그레이션하세요.
-- 어댑터를 사용할 때 `DeprecationWarning`이 표시되며, 이는 코드를 마이그레이션해야 한다는 신호입니다.
+- 모든 코드는 직접 `infra` 패키지를 사용해야 합니다.
+- `adapters` 패키지는 더 이상 사용되지 않으며 제거되었습니다.
+- 새로운 기능 개발 시 항상 직접 서비스 계층과 인프라 계층을 사용하세요.
 
 ## 모범 사례
 

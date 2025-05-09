@@ -36,7 +36,7 @@ class MongoArticleRepository(ArticleRepository):
             The article if found, None otherwise
         """
         doc = await self.db.find_one(self.collection_name, {"_id": id})
-        if doc:
+        if doc is not None:
             return ArticleModel.model_validate(doc)
         return None
 
@@ -76,7 +76,7 @@ class MongoArticleRepository(ArticleRepository):
         data = article.model_dump(exclude_unset=True)
         article_id = data.get("id") or data.get("_id")
 
-        if article_id:
+        if article_id is not None:
             # Update existing article
             await self.db.update(
                 self.collection_name, {"_id": article_id}, {"$set": data}, upsert=True
@@ -162,7 +162,7 @@ class MongoArticleRepository(ArticleRepository):
             The article with the specified URL or None if not found
         """
         doc = await self.db.find_one(self.collection_name, {"url": url})
-        return ArticleModel.model_validate(doc) if doc else None
+        return ArticleModel.model_validate(doc) if doc is not None else None
 
     async def find_by_unique_id(self, unique_id: str) -> Optional[ArticleModel]:
         """
@@ -175,7 +175,7 @@ class MongoArticleRepository(ArticleRepository):
             The article with the specified unique ID or None if not found
         """
         doc = await self.db.find_one(self.collection_name, {"unique_id": unique_id})
-        return ArticleModel.model_validate(doc) if doc else None
+        return ArticleModel.model_validate(doc) if doc is not None else None
 
     async def find_by_platform_and_article_id(
         self, platform: str, article_id: str

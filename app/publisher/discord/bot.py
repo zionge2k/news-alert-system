@@ -10,6 +10,9 @@ from app.publisher.discord.services import NewsEmbedFormatter
 from app.schemas.article import ArticleDTO, ArticleMetadata
 from common.utils.logger import get_logger
 
+# 직접 서비스 계층 임포트
+from services.notifier import NotifierFactory
+
 # 환경 변수 로드
 load_dotenv()
 
@@ -49,6 +52,18 @@ class NewsAlertBot(commands.Bot):
 
         # 메시지 포맷터 설정
         self.formatter = formatter or NewsEmbedFormatter()
+
+        # 서비스 어댑터 대신 직접 Discord 알림 서비스 생성
+        webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
+        if webhook_url:
+            self.discord_notifier = NotifierFactory.create(
+                "discord", webhook_url=webhook_url
+            )
+        else:
+            self.discord_notifier = None
+            logger.warning(
+                "DISCORD_WEBHOOK_URL이 설정되지 않아 webhook 알림 기능이 비활성화됩니다."
+            )
 
     async def on_ready(self):
         """봇이 준비되었을 때 호출되는 이벤트 핸들러"""
@@ -91,6 +106,51 @@ class NewsAlertBot(commands.Bot):
             return True
         except Exception as e:
             logger.error(f"알림 전송 중 오류 발생: {str(e)}")
+            return False
+
+    async def send_news_via_webhook(self, article: ArticleDTO[ArticleMetadata]) -> bool:
+        """
+        Discord webhook을 통해 뉴스 알림을 전송합니다.
+        직접 Discord 알림 서비스를 사용합니다.
+
+        Args:
+            article: 알림을 보낼 뉴스 기사
+
+        Returns:
+            bool: 알림 전송 성공 여부
+        """
+        # Discord 알림 서비스 확인
+        if not self.discord_notifier:
+            logger.error("Discord 알림 서비스가 설정되지 않았습니다.")
+            return False
+
+        try:
+            # ArticleDTO를 서비스 계층이 기대하는 형식으로 변환
+            news_data = {
+                "title": article.title,
+                "content": article.content,
+                "source": article.metadata.platform,
+                "url": article.url,
+                "published_at": (
+                    article.metadata.published_at.isoformat()
+                    if article.metadata.published_at
+                    else None
+                ),
+                "category": article.metadata.category,
+            }
+
+            # 알림 서비스를 통해 알림 전송
+            message = self.discord_notifier.format_message(news_data)
+            success = await self.discord_notifier.send(message)
+
+            if success:
+                logger.info(f"Discord webhook을 통해 뉴스 알림 전송: {article.title}")
+            else:
+                logger.warning(f"Discord webhook 알림 전송 실패: {article.title}")
+
+            return success
+        except Exception as e:
+            logger.error(f"Discord webhook 알림 전송 중 오류 발생: {str(e)}")
             return False
 
 

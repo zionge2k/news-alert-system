@@ -15,8 +15,8 @@ warnings.warn(
     stacklevel=2,
 )
 
-# adapters/utils.py에서 모든 기능 임포트
-from adapters.utils import (
+# 직접 utils 패키지에서 모든 기능 임포트
+from utils import (
     AuthenticationException,
     AuthorizationException,
     BaseException,
@@ -29,22 +29,23 @@ from adapters.utils import (
     NetworkException,
     ResourceNotFoundException,
     ValidationException,
-    clean_json,
     clean_json_keys,
-    create_headers,
     create_request_headers,
     exception_handler,
-    format_date,
     format_datetime,
     get_current_timestamp,
     get_logger,
-    get_timestamp,
-    global_config,
     log_exception,
     remove_html_tags,
     sanitize_text,
     wrap_exception,
 )
+
+# 기존 함수명 호환성 유지
+clean_json = clean_json_keys
+create_headers = create_request_headers
+format_date = format_datetime
+get_timestamp = get_current_timestamp
 
 # 모든 임포트된 심볼을 공개
 __all__ = [

@@ -14,8 +14,6 @@ setup(
             "pipelines",
             "infra",
             "infra.*",
-            "adapters",
-            "adapters.*",
             "utils",
             "utils.*",
         ]

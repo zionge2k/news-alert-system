@@ -39,7 +39,11 @@ name = "news-alert-system"
 version = "0.1.0"
 description = ""
 authors = ["zion"]
-packages = [{include = "app"}, {include = "common"}, {include = "pipelines"}, {include = "infra"}]
+packages = [{include = "app"}, {include = "common"}, {include = "pipelines"}, {include = "infra"}, {include = "utils"}]
+
+[tool.poetry.group.dev.dependencies]
+coverage = "^7.8.0"
+pytest-cov = "^6.1.1"
 
 [tool.black]
 line-length = 88
@@ -57,7 +61,7 @@ python_classes = "Test*"
 python_functions = "test_*"
 
 [tool.coverage.run]
-source = ["app", "common", "pipelines", "infra"]
+source = ["app", "common", "pipelines", "infra", "utils"]
 omit = ["*/tests/*", "*/venv/*", "*/.venv/*", "*/docs/*", "*/scripts/*"]
 
 [tool.coverage.report]

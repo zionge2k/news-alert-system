@@ -1,0 +1,8 @@
+{
+  "id": 1,
+  "news_id": 1,
+  "channel": "discord",
+  "message": "테스트 뉴스 제목: 테스트 본문 내용",
+  "status": "sent",
+  "sent_at": "2024-06-01T12:01:00Z"
+}

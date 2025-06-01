@@ -1,3 +1,13 @@
+# Queue 시스템 문서
+
+MongoDB 기반의 뉴스 기사 큐 시스템입니다. 크롤링된 기사를 Discord에 발행하기 전에 버퍼링하고 관리합니다.
+
+## 목차
+- [전체 아키텍처](#전체-아키텍처-다이어그램)
+- [큐 아이템 상태](#큐-아이템-상태-다이어그램)
+- [주요 메서드 흐름](#주요-메서드-흐름도)
+- [클래스 구조](#클래스-관계-다이어그램)
+- [데이터 흐름](#데이터-흐름-시퀀스-다이어그램)
 
 ## 전체 아키텍처 다이어그램
 
@@ -26,7 +36,7 @@ graph TB
     D -->|큐 아이템 제공| F
     F -->|발행 완료| G
     F -->|상태 업데이트| D
-    ```
+```
 
 ## 큐 아이템 상태 다이어그램
 
@@ -64,7 +74,7 @@ stateDiagram-v2
         - retry_count 증가
         - error_message 저장
     end note
-    ```
+```
 
 ## 주요 메서드 흐름도
 
@@ -129,3 +139,136 @@ flowchart TD
     C6 --> B1
     C5 -->|아니오| End4([최종 실패])
 ```
+
+## 클래스 관계 다이어그램
+
+```mermaid
+classDiagram
+    class QueueInterface {
+        <<interface>>
+        +enqueue(item: QueueItem) bool
+        +dequeue(limit: int) List~QueueItem~
+        +mark_as_completed(item_id: str) bool
+        +mark_as_failed(item_id: str, error_message: str) bool
+        +retry_failed(max_retries: int) int
+        +is_duplicate(unique_id: str) bool
+        +get_status() dict
+        +clean_completed() int
+    }
+    
+    class MongoDBQueue {
+        -collection_name: str
+        +collection: Collection
+        +enqueue(item: QueueItem) bool
+        +dequeue(limit: int) List~QueueItem~
+        +mark_as_completed(item_id: str) bool
+        +mark_as_failed(item_id: str, error_message: str) bool
+        +retry_failed(max_retries: int) int
+        +is_duplicate(unique_id: str) bool
+        +get_status() dict
+        +clean_completed() int
+    }
+    
+    class QueueService {
+        -queue: QueueInterface
+        +add_articles_from_db(platform, category, limit, hours) int
+        +get_pending_articles(limit: int) List~QueueItem~
+        +mark_article_published(unique_id: str) bool
+        +mark_article_failed(unique_id: str, error_message: str) bool
+        +retry_failed_articles(max_retries: int) int
+        +get_queue_status() dict
+        +clean_old_articles() int
+    }
+    
+    class QueueItem {
+        +article_id: str
+        +platform: str
+        +title: str
+        +url: str
+        +unique_id: str
+        +content: Optional~str~
+        +category: Optional~str~
+        +published_at: Optional~datetime~
+        +status: str
+        +retry_count: int
+        +error_message: Optional~str~
+        +created_at: datetime
+        +updated_at: datetime
+    }
+    
+    class QueueStatus {
+        <<enumeration>>
+        PENDING
+        PROCESSING
+        COMPLETED
+        FAILED
+    }
+    
+    QueueInterface <|.. MongoDBQueue : implements
+    QueueService --> QueueInterface : uses
+    QueueService --> QueueItem : manages
+    QueueItem --> QueueStatus : uses
+    MongoDBQueue --> MongoDB : connects to
+```
+
+## 데이터 흐름 시퀀스 다이어그램
+
+```mermaid
+sequenceDiagram
+    participant Article as MongoDB Articles
+    participant Service as QueueService
+    participant Queue as MongoDBQueue
+    participant QueueDB as Queue Collection
+    participant Publisher as Discord Publisher
+    
+    Note over Article,Publisher: 기사 큐 추가 프로세스
+    Article->>Service: 기사 조회
+    Service->>Service: 발행 여부 확인
+    Service->>Queue: is_duplicate()
+    Queue->>QueueDB: find_one()
+    QueueDB-->>Queue: 중복 여부
+    Queue-->>Service: false (중복 아님)
+    Service->>Queue: enqueue(QueueItem)
+    Queue->>QueueDB: insert_one()
+    QueueDB-->>Queue: 성공
+    
+    Note over Article,Publisher: 기사 처리 프로세스
+    Publisher->>Service: get_pending_articles()
+    Service->>Queue: dequeue(limit)
+    Queue->>QueueDB: find(PENDING).sort()
+    loop 각 문서에 대해
+        Queue->>QueueDB: find_one_and_update()<br/>PENDING→PROCESSING
+        QueueDB-->>Queue: updated_doc or None
+    end
+    Queue-->>Service: List[QueueItem]
+    Service-->>Publisher: 처리할 기사들
+    
+    Note over Article,Publisher: 발행 후 처리
+    alt 발행 성공
+        Publisher->>Service: mark_article_published()
+        Service->>Queue: mark_as_completed()
+        Queue->>QueueDB: update_one()<br/>→COMPLETED
+    else 발행 실패
+        Publisher->>Service: mark_article_failed()
+        Service->>Queue: mark_as_failed()
+        Queue->>QueueDB: update_one()<br/>→FAILED, retry_count++
+    end
+```
+
+## 주요 기능
+
+### 1. 중복 방지
+- `unique_id`를 통한 중복 체크
+- MongoDB unique index로 보장
+
+### 2. 동시성 처리
+- `find_one_and_update()`를 사용한 atomic operation
+- Race condition 방지
+
+### 3. 재시도 로직
+- 실패한 아이템의 `retry_count` 관리
+- 최대 재시도 횟수 제한
+
+### 4. 상태 관리
+- PENDING → PROCESSING → COMPLETED/FAILED
+- 각 상태별 타임스탬프 기록
